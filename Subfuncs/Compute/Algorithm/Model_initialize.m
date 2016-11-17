@@ -21,7 +21,7 @@ function [W,  Worig]  = Model_initialize( opt )
         [~, mask] = transform_inds_circ(0,0,150,opt.m,min((opt.m-1)/2,3),0);
         W(:,opt.Wblocks{type}(1)) = mask(:);
       case 'donut'
-        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,(opt.m-5)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,max((opt.m-7),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
         W(:,opt.Wblocks{type}(1)) = mask(:);
       case 'given'
         W(:,opt.Wblocks{type}) = opt.init_W(:,opt.Wblocks{type});
