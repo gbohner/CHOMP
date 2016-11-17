@@ -108,6 +108,40 @@ else %Handle the data loading-preprocessing-saving
           end
         end
       end
+  elseif strcmp(opt.data_type, 'json_neurofinder')
+    filepath = [data_path filesep]; % Get the path to the main folder of the json
+    json_conf = loadjson([filepath 'images/conf.json']);
+    allfiles = rdir([filepath 'images/*/*.bin']);
+    sz_orig = [0 0];
+    sz_orig(1) = json_conf.dims(1);
+    sz_orig(2) = json_conf.dims(2);
+    T = length(allfiles);
+    data.raw = strcat(filepath, {allfiles.name});
+    
+    % Load first file
+    fid = fopen(allfiles(1).name,'r');
+    cur_im = reshape(fread(fid, 'uint16'), sz_orig(1), sz_orig(2));
+    fclose(fid);
+    
+    raw_stack_done = 0; if exist(get_path(opt,'raw_virtual_stack'),'file'), raw_stack_done = 1; end;
+    if raw_stack_done, data.raw_stack.Y = chomp_data(get_path(opt,'raw_virtual_stack')); 
+    else
+       data.raw_stack.Y = chomp_data(get_path(opt,'raw_virtual_stack'), cur_im, ...
+          'number_format','uint16','timestamp', opt.timestamp, 'prefix',opt.file_prefix);
+    end
+    
+    sz = size(imresize(cur_im,opt.spatial_scale));
+    data.proc_stack.Y = zeros([sz(1), sz(2), T]); % Image stack
+    data.proc_stack.Y(:, :,1) = imresize(im_cur,opt.spatial_scale,'bicubic');
+    
+    % Read the rest of the images
+    for i2 = 2:T
+      fid = fopen(allfiles(i2).name,'r');
+      im_cur = double(reshape(fread(fid, 'uint16'), sz(1), sz(2)));
+      fclose(fid);
+      data.proc_stack.Y(:, :,i2) = imresize(im_cur,opt.spatial_scale,'bicubic');
+      if ~raw_stack_done, append(data.raw_stack.Y, im_cur, 'number_format','uint16'); end
+    end
   end % data reading
   
   
