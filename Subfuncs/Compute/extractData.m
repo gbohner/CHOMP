@@ -117,25 +117,27 @@ else %Handle the data loading-preprocessing-saving
     sz_orig(2) = json_conf.dims(2);
     T = length(allfiles);
     data.raw = strcat(filepath, {allfiles.name});
+    disp(T);
     
     % Load first file
     fid = fopen(allfiles(1).name,'r');
-    cur_im = reshape(fread(fid, 'uint16'), sz_orig(1), sz_orig(2));
+    im_cur = reshape(fread(fid, 'uint16'), sz_orig(1), sz_orig(2));
     fclose(fid);
     
     raw_stack_done = 0; if exist(get_path(opt,'raw_virtual_stack'),'file'), raw_stack_done = 1; end;
     if raw_stack_done, data.raw_stack.Y = chomp_data(get_path(opt,'raw_virtual_stack')); 
     else
-       data.raw_stack.Y = chomp_data(get_path(opt,'raw_virtual_stack'), cur_im, ...
+       data.raw_stack.Y = chomp_data(get_path(opt,'raw_virtual_stack'), im_cur, ...
           'number_format','uint16','timestamp', opt.timestamp, 'prefix',opt.file_prefix);
     end
     
-    sz = size(imresize(cur_im,opt.spatial_scale));
+    sz = size(imresize(im_cur,opt.spatial_scale));
     data.proc_stack.Y = zeros([sz(1), sz(2), T]); % Image stack
     data.proc_stack.Y(:, :,1) = imresize(im_cur,opt.spatial_scale,'bicubic');
     
     % Read the rest of the images
     for i2 = 2:T
+      disp(i2)
       fid = fopen(allfiles(i2).name,'r');
       im_cur = double(reshape(fread(fid, 'uint16'), sz(1), sz(2)));
       fclose(fid);
