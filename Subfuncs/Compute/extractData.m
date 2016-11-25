@@ -139,7 +139,7 @@ else %Handle the data loading-preprocessing-saving
     for i2 = 2:T
       disp(i2)
       fid = fopen(allfiles(i2).name,'r');
-      im_cur = double(reshape(fread(fid, 'uint16'), sz(1), sz(2)));
+      im_cur = double(reshape(fread(fid, 'uint16'), sz_orig(1), sz_orig(2)));
       fclose(fid);
       data.proc_stack.Y(:, :,i2) = imresize(im_cur,opt.spatial_scale,'bicubic');
       if ~raw_stack_done, append(data.raw_stack.Y, im_cur, 'number_format','uint16'); end
