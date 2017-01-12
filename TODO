@@ -1,0 +1,56 @@
+Branch for integrating CHOMP into the https://bitbucket.org/lasermouse/twophotonimagingv2
+pipeline.
+
+
+Possible tasks, sorted by difficulty:
+
+(Easy)
+1. Enable CHOMP to use input data in the format of TIFFStack or TensorStack
+- Just adding an extra input type to "extractData", leave the rest the same
+
+2. Modify the ROI output format to match that of the pipeline for later use
+- Just adding an extra output type to "getROI"
+
+3. Add an extra input to CHOMP that takes a model file and uses it for 
+inference / initialisation for learning
+- Modifying "chomp" a little bit to match implementation in pipeline
+- Making sure that the model file saved as is has all the information required for later
+inference
+
+(Medium)
+4. Change CHOMP's data handling to work directly with TIFFStack everywhere during inference
+- Making the current internal data format obsolete -> delete
+- "inp.data.Y" (and similar thigns) shall now contain TIFFStack objects
+- Correct the indexing of "inp.data.Y" (et al) to work with TIFFStack/TensorStack
+
+5. Rewrite the learning to work with TensorStack Objects instead of
+cell arrays of individual data files 
+- not sure whether this makes sense though performance-wise
+
+
+(hard)
+6. Reformulate the whole CHOMP algorithm in an MVC (model-view-controller) style
+
+Subtasks
+6.1 Implement the Model - Algorithm
+- Collect all functions related to inference in a single class
+- Collect all functions related to learning in a single class
+-- Learning can inherit many functions from inference!!!
+
+6.2 Implement the Model - Data
+- Collect all functions related to data access and storage type in a single class
+- Define clear rules on when and how the Algorithm accesses the data during the run
+- (Minimise the required data access during Inference/Learning)
+
+6.3 Implement the View
+- Create a class the accesses the model and creates output
+- Define clear output types
+-- ROIs (compatible with the pipeline)
+-- Filtered Stacks (compatible with further visualisations/compressions of the pipeline)
+-- Learned models for subsequent inference (make sure they contain ALL information needed +
++ that learned model parameters are efficiently scalable in space and/or time)
+
+6.4 Implement the Controller
+- Define an interface with which outside code can call the required 
+inference/learning/output functions
+
