@@ -57,7 +57,7 @@ classdef chomp_options < handle
      % Misc parameters
      fig = 1; %How much to visualize - levels 0, 1, 2
      verbose = 1; %How much progress to show in text levels 0, 1, 2
-     cleanup = 0;
+     cleanup = 1; % 1 - close all open files, 2 - delete all intermediate files (2 is not impletemented yet)
 
      timestamp % Timestamping
      

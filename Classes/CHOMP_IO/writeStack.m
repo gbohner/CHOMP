@@ -31,11 +31,32 @@ function writeStack( path, data, varargin )
       
       to_modify = any([p.Results.append, p.Results.overwrite_frame, p.Results.truncateToFrame]);
       
-      %Open the file at the given location
-      if to_modify
-        fid = fopen(p.Results.path,'rb+');     
-      else
-        fid = fopen(p.Results.path,'w');
+      %Open the file at the given location      
+      % First check if file is already open, with the required permissions
+      fid = -1;
+      open_files = fopen('all');      
+      home_dir = getenv('HOME');
+      target_path = p.Results.path;
+      if target_path(1) == '~', target_path = [home_dir, target_path(2:end)]; end    
+      for i1 = 1:numel(open_files)
+        [filename,permission,machinefmt,encodingOut] = fopen(open_files(i1));
+        if strcmp(filename, target_path)
+          if to_modify
+            if strcmp(permission, 'rb+')
+              fid = open_files(i1);
+              break;
+            end
+          end
+        end
+      end
+      
+      % If file is not open with correct permissions, open it
+      if fid == -1
+        if to_modify
+          fid = fopen(p.Results.path,'rb+');     
+        else
+          fid = fopen(p.Results.path,'w');
+        end
       end
       
       %Convert the data to required number format
@@ -95,7 +116,11 @@ function writeStack( path, data, varargin )
         end
       end
       
-      %Close the file
-      fclose(fid);
+      %Close the file - we will do this outside in case of modifying the
+      %file      
+      [filename,permission,machinefmt,encodingOut] = fopen(fid);
+      if strcmp(permission, 'w') % Opened for writing
+        fclose(fid);
+      end
       
 end
