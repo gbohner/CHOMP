@@ -1,4 +1,4 @@
-function ROI_to_json( opt, ROIs, varargin )
+function save_path = ROI_to_json( opt, ROIs, varargin )
 %ROI_TO_JSON Exports the CHOMP ROI format into the one required by
 %neurofinder
 
@@ -17,7 +17,9 @@ for i1 = 1:num_cells
   regions{i1} = struct('id', i1, 'coordinates', [rows(:), cols(:)]);
 end
 
-savejson('', regions, [opt.results_folder filesep 'sources_' opt.timestamp '.json']);
+save_path =  [opt.results_folder filesep 'sources_' opt.timestamp '.json'];
+
+savejson('', regions, save_path);
 
 % % Include all datasets for final submission
 % 
