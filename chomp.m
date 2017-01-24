@@ -9,6 +9,9 @@ function [opt, ROI_mask, ROIs] = chomp( opt )
 
 gtic = tic;
 
+% Close all open files (important for virtual stack access)
+fclose('all')
+
 %Find directory we're running from and add all subfolders to matlab path
 dir_orig = pwd;
 opt.code_path = [fileparts(mfilename('fullpath')) filesep];
@@ -63,6 +66,7 @@ end
 
 %Clean up if required (delete unnecessary inbetween files etc)
 if opt.cleanup
+  fclose('all')
 end
 
 cd(dir_orig);

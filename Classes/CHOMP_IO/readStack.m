@@ -5,7 +5,29 @@ function out = readStack(path, varargin)
   p.addRequired('path',@(x)exist(x,'file'))
   p.parse(path);
   
-  fid = fopen(p.Results.path,'r');
+  
+  % First check if file is already open, with the required permissions
+  fid = -1;
+  open_files = fopen('all');      
+  home_dir = getenv('HOME');
+  target_path = p.Results.path;
+  if target_path(1) == '~', target_path = [home_dir, target_path(2:end)]; end
+  isopen = 0;      
+  for fid1 = 1:numel(open_files)
+    [filename,permission,machinefmt,encodingOut] = fopen(fid1);
+    if strcmp(filename, target_path)
+      if strcmp(permission, 'r')
+        fid = fid1;
+        break;
+      end
+    end
+  end
+  
+  if fid == -1
+    fid = fopen(p.Results.path,'r');
+  end
+      
+  frewind(fid); % Always start from the beginning of the file
   dims = fread(fid, 1, 'double');
   szData = fread(fid,uint16(dims),'double')';
   headerStr = char(fread(fid,100,'char'))';
@@ -114,7 +136,8 @@ function out = readStack(path, varargin)
     end
   end
 
-  fclose(fid);
+  % We will close the files outside to save time for repeated access
+  % fclose(fid);
 
   out = reshape(out,szOut);
   
