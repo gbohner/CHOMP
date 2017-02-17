@@ -17,7 +17,7 @@ classdef chomp_options < handle
      file_prefix = 'test'; %Prefix for file names
  
      % Model setup
-     m = 17; % Basis function size in pixels
+     m = 7; % Basis function size in pixels
      NSS = 2; % Number of object types
      KS = 4; % Dimensionality of space per object type (i.e. number of basis functions per object type)
      init_model = {'filled', 'pointlike'}; % 'filled', 'donut', 'pointlike', \\ %TODO: 'supervised', 'multi'
@@ -28,8 +28,8 @@ classdef chomp_options < handle
      spatial_scale = 1; % Rescale data spatially (so that cell size matches basis function size)
      time_scale = 1; % Rescale data temporally
      whiten = 1;
-     smooth_filter_mean % = m; %smoothing filter size for mean image
-     smooth_filter_var % = m; %smoothing filter size for variance
+     smooth_filter_mean = 7; % = m; %smoothing filter size for mean image
+     smooth_filter_var = 7; % = m; %smoothing filter size for variance
      data_type = 'frames_virtual'; %Input data type (frames / stack / json / matxyt)
      src_string = 'Ch2_*'; %in case of loading multiple frames from a directory, look for this substring to load files (choose channel eg)
      mask = 0; % Set if the region of interest is only part of the image stack.
@@ -45,7 +45,7 @@ classdef chomp_options < handle
       %     relweight = 10; % weighting between importance of covariance / mean (automatically set to 'optimal' value in Shared_main/extract_coefs.m)
      cells_per_image = 30; % the maximum number of objects to infer
      learn   = 1; % do learning?
-     spatial_push % = @(grid_dist)logsig(0.5*grid_dist-floor(options.m/2-1)); % Specified distance based function (set as [] if not desired)
+     spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(7/2-1)); % Specified distance based function (set as [] if not desired)
      learn_decomp = 'COV_RAW'; % COV_RAW, COV, HOSVD or MTF (MTF not implemented yet, %TODO - write R wrapper to use Kahn2015 code)
 
 
@@ -97,7 +97,8 @@ classdef chomp_options < handle
       end
       
       %Compute the derived properties
-      obj = obj.derive_from_m(); 
+      %obj = obj.derive_from_m();  % Disable this to enable more manual
+      %control over smoothing.
       
       obj = obj.assert();
     end

@@ -2,6 +2,16 @@ function out = raw2cum( inp, dim)
 %RAW2CUM Converts raw moments to cumulants for 1D distributions for data
 %matrix inp, where raw moments are stored along dimension dim
 
+% Check if we do need to do this.
+if dim>ndims(inp)
+  out = inp;
+  return;
+end
+
+if size(inp, dim)==1
+  out = inp;
+  return
+end;
 
 %Put the moment dimension first
 dims = 1:ndims(inp);

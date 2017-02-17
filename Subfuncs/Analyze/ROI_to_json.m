@@ -12,8 +12,8 @@ end
 regions = {};
 for i1 = 1:num_cells
   [rows, cols] = find(ROIs{i1}.mask);
-  rows = rows + ROIs{i1}.row - (size(ROIs{i1}.mask,1)+1)/2;
-  cols = cols + ROIs{i1}.col - (size(ROIs{i1}.mask,2)+1)/2;
+  rows = rows + ROIs{i1}.row - (size(ROIs{i1}.mask,1)+1)/2 - 1; % -1 due to matlab-python discrepancy
+  cols = cols + ROIs{i1}.col - (size(ROIs{i1}.mask,2)+1)/2 - 1; % -1 due to matlab-python discrepancy
   regions{i1} = struct('id', i1, 'coordinates', [rows(:), cols(:)]);
 end
 

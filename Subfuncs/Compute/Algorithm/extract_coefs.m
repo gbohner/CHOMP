@@ -74,7 +74,7 @@ for j = 1:opt.cells_per_image
   %       if mom>=2
   %         dL_mom(:,:,mom) = dL_mom(:,:,mom)./abs(mean2(dL_mom(:,:,mom))); %normalize the moment-related discrepencies
   %       end
-        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
+%        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
       end
 %     dL = - sum(sum(WY .* xk,3),4); % Add contribution from each map and each moment
     
@@ -94,7 +94,7 @@ for j = 1:opt.cells_per_image
     L(j,:) = AbsMin;
     
     %Check if there is not enough likelihood decrease anymore
-    if AbsMin > 0
+    if AbsMin >= 0
       break;
     end
   

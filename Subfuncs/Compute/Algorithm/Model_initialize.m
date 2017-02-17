@@ -21,8 +21,17 @@ function [W,  Worig]  = Model_initialize( opt )
         [~, mask] = transform_inds_circ(0,0,150,opt.m,min((opt.m-1)/2,3),0);
         W(:,opt.Wblocks{type}(1)) = mask(:);
       case 'donut'
-        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,max((opt.m-7),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,max((opt.m-5),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
         W(:,opt.Wblocks{type}(1)) = mask(:);
+      case 'donut_two'
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,max((opt.m-5),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        W(:,opt.Wblocks{type}(1)) = mask(:);
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-3)/2,max((opt.m-7),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        W(:,opt.Wblocks{type}(2)) = mask(:);
+      case 'donut_marius'
+        [~, mask_outer] = transform_inds_circ(0,0,150,opt.m,(opt.m-5)/2,max((opt.m-9),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        [~, mask_inner] = transform_inds_circ(0,0,150,opt.m,(opt.m-9)/2,0); % . , . , ., filter size, circle outer radius, inner hole radius
+        W(:,opt.Wblocks{type}(1)) = mask_outer(:)-0.5*mask_inner(:);
       case 'given'
         W(:,opt.Wblocks{type}) = opt.init_W(:,opt.Wblocks{type});
       otherwise
