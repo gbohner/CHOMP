@@ -12,7 +12,7 @@ opt = chomp_options(); %Initialize default options
 
 % % Setup folder structure for local run and local data 
 %opt.data_path = '~/stanford/Tseries_20160219_Watkins_CenterOutReach_time20160219.133302.428-001/Tseries_20160219_Watkins_CenterOutReach_time20160219.133302.428-001_Cycle00001_Ch2_000001.ome.tif';
-opt.data_path = '/Users/gergobohner/Dropbox/Gatsby/Research/forUCL/stacksForUCL/GreenChan/GreenChanB_0000.tif';
+opt.data_path = '/Users/gergobohner/Data/stacksForUCL/GreenChan/GreenChanB_0000.tif';
 % opt.data_path = '/Users/gergobohner/Dropbox/Gatsby/Research/forUCL/stacksForUCL/RedChan/RedChanD_0000.tif';
 
 opt.data_type = 'frames';
@@ -26,13 +26,13 @@ opt.data_type = 'frames';
 
 opt.src_string = '.tif';
 
-opt.m = 7;
+opt.m = 5;
 opt.stabilize = 0;
 opt.whiten = 1;
-opt.spatial_scale = 0.3;
-opt.time_scale = 0.2;
+opt.spatial_scale = 0.2;
+opt.time_scale = 0.1;
 opt.NSS = 1;
-opt.KS = 4;
+opt.KS = 3;
 opt.mom = 4;
 opt.init_model = 'filled'; %{'filled', 'donut'};
 opt.niter = 3;
