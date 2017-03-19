@@ -26,10 +26,10 @@ for obj_type = 1:opt.NSS
     if opt.diag_tensors 
       filter_combs = opt.KS; % Fast version where we don't use combinations of filter responses for estimation
     else
-      filter_combs = opt.KS^mom1; % For each object type consider all combinations of filters % TODO - exploit (super)symmetricity to reduce storage and computation
+      filter_combs = nchoosek(opt.KS+mom1-1,mom1); % For each object type consider all combinations of filters; exploiting (super)symmetricity to reduce storage and computation
     end
     WY{obj_type}{mom1} = zeros([szY(1:2),filter_combs]); %For every location store the regression wrt all filter_combs (elements of the N_filter^mom1 projection tensor for the mom1-th moment
-    WY{obj_type}{mom1} = zeros([filter_combs, filter_combs]);
+    WnormInv{obj_type}{mom1} = zeros([filter_combs, filter_combs]);
     GW{obj_type}{mom1} = cell([filter_combs, filter_combs]); % This may be HUGE too big for large moments and large filter sizes - %TODO store on disk
   end
 end
@@ -48,13 +48,12 @@ for t1 = 1:szY(end) %TODO Can be done parallelly or on GPU
       conv_result(:,:,filt) = conv2(data.proc_stack.Y(:,:,t1),Wconv,'same');    
     end
     for mom1 = 1:opt.mom  %Get raw moments of the projected time course at each possible cell location %TODO - this might be wrong, because it assumes equal weighting??? but it's filter by filter, so maybe the linear combination of filters is still linear in the higher moments %TOTHINK Nah it seems correct
-      all_combs = all_filter_combs(opt.KS, mom1, opt.diag_tensors); % Get the required tensors
-      for i1 = 1:size(all_combs,1) % Iterate over the possible combinations (should be opt.KS^mom1)
+      [all_combs, mom_combs] = all_filter_combs(opt.KS, mom1, opt.diag_tensors); % Get the required tensors
+      
+      for i1 = 1:size(mom_combs,1) % Iterate over the possible combinations (should be opt.KS^mom1)
         % Turn the rows of all_combs into a vector that counts the occurance
         % of the k-th number for easy use with existing data_structure
-        mom_vec = histc(all_combs(i1,:),1:opt.KS);
-        mom_vec = shiftdim(mom_vec,-1);
-        WY{obj_type}{mom1}(:,:,i1) = WY{obj_type}{mom1}(:,:,i1) + prod(bsxfun(@power, conv_result, mom_vec),3);
+        WY{obj_type}{mom1}(:,:,i1) = WY{obj_type}{mom1}(:,:,i1) + prod(bsxfun(@power, conv_result, shiftdim(mom_combs(i1,:),-1)),3);
       end
     end
   end
@@ -73,7 +72,35 @@ for obj_type = 1:opt.NSS
   if opt.diag_tensors
     WY{obj_type} = raw2cum(WY{obj_type});
   else
-    WY{obj_type} = raw2cum_multivariate(WY{obj_type});
+    % TODO - This is quite inefficient in terms of access, but for proof of
+    % concept it's ok
+    
+    % Store the tensor-collapsing and tensor-inducing index vectors (takes long if within the loop)
+    comb_inds_all = cell(opt.mom,2);
+    for mom1 = 1:opt.mom
+      [~, ~, comb_inds, comb_inds_rev] = all_filter_combs(opt.KS, mom1, opt.diag_tensors);
+      comb_inds_all{mom1, 1} = comb_inds;
+      comb_inds_all{mom1, 2} = comb_inds_rev;
+    end
+    
+    for i1 = 1:szY(1)
+      for i2 = 1:szY(2)
+        % For every location, convert into a cell array with moments as its
+        % elements as a proper tensor
+        tmp = cell(opt.mom,1);
+        for mom1 = 1:opt.mom
+          tmp{mom1} = reshape(WY{obj_type}{mom1}(i1,i2,comb_inds_all{mom1,2}),[opt.KS*ones(1,mom1),1]);
+        end
+        
+        % Compute the cumulants
+        tmp = raw2cum_multivariate(tmp);
+        
+        % Convert the resulting cumulant tensors back (into the cheap storeage of only unique elements) and store
+        for mom1 = 1:opt.mom
+          WY{obj_type}{mom1}(i1,i2,:) = tmp{mom1}(comb_inds_all{mom1,1});
+        end
+      end
+    end  
   end
 end
 
@@ -84,7 +111,10 @@ end
 
 for obj_type = 1:opt.NSS
   for mom1 = 1:opt.mom  %Get raw moments of the projected time course at each possible cell location %TODO - this might be wrong, because it assumes equal weighting??? but it's filter by filter, so maybe the linear combination of filters is still linear in the higher moments %TOTHINK Nah it seems correct
-    all_combs = all_filter_combs(opt.KS, mom1, opt.diag_tensors);
+    [all_combs, ~, comb_inds] = all_filter_combs(opt.KS, mom1, opt.diag_tensors);
+    
+    all_combs = all_combs(comb_inds,:); % Use only unique combinations - everything else is (super)symmetric - be careful to symmetrize during (re)constructions 
+    
     % For each row in all_combs compute the filter 
     for filt1_ind = 1:size(all_combs,1)
       % Compute the filter tensor
@@ -126,17 +156,28 @@ end
 clearvars -except WY GW WnormInv
 
 
-function all_combs = all_filter_combs(n_filt, k_choose, only_diag)
+function [all_combs, mom_combs, comb_inds, comb_inds_rev] = all_filter_combs(n_filt, k_choose, only_diag)
 % ALL_FILTER_COMBS - Returns all required combinations given opt.KS filters
 % and a mom1-combination 
   if only_diag
     all_combs = repmat((1:n_filt)',1,k_choose); % Only use [1 1 1 1], [2 2 2 2], etc [opt.KS opt.KS opt.KS opt.KS] type rows (diagonal elements of the moment tensor)
   else
-    all_combs = unique(nchoosek(repmat(1:n_filt,1,n_filt), k_choose), 'rows');  
+    all_combs = unique(nchoosek(repmat(1:n_filt,1,k_choose), k_choose), 'rows');  
     % Returns all unique mom1-combinations of opt.KS filters (with repetition) as rows.
     % Also using this way of listing all_combs will ensure that if we
     % reshape our vector we get the correct tensor
   end
+    
+  % Find the moment combinations given the filter combinations (i.e. aggregating the numbers picked multiple times);
+  mom_combs = zeros(size(all_combs,1), n_filt); 
+  
+  for i11 = 1:size(all_combs,1)
+    mom_combs(i11,:) = histc(all_combs(i11,:),1:n_filt);
+  end
+
+  % Find the unique rows of mom_combs, exploiting the known supersymmetry of
+  % our tensors
+  [mom_combs, comb_inds, comb_inds_rev] = unique(mom_combs,'rows','stable');
 end
 
 
@@ -144,7 +185,8 @@ function filt = get_filter_comb(W, filt_comb)
   % Given a set of filters and a row of all_combs, return the requested combination
   filt = W(:, filt_comb(1));
   for i11 = 2:size(filt_comb,2)
-    filt = mply(filt,  W(:, filt_comb(i11)'); % always add an extra dim by multiplying from the right with a row vector
+    % Make sure everything we do is (super)symmetric!
+    filt = symmetrise(mply(filt,  W(:, filt_comb(i11))', 0)); % always add an extra dim by multiplying from the right with a row vector
   end
 end
 

@@ -7,7 +7,9 @@ function out = raw2cum_multivariate( inp )
 out = inp;
 for moms = 1:numel(inp)
   for i1=1:moms-1
-      out{moms} = out{moms} - nchoosek(moms-1,i1-1) .* mply(out{i1}, inp{moms-i1}, 0); 
+      % Symmetrise what we subtract (as we know these moment and cumulant
+      % tensors have to be supersymmetric)
+      out{moms} = out{moms} - nchoosek(moms-1,i1-1) .* symmetrise(mply(out{i1}, shiftdim(inp{moms-i1},-1))); 
   end
 end
 

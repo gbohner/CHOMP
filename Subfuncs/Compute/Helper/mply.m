@@ -40,8 +40,6 @@ if dims == 1
       reshape(B,szB(1),prod(szB(2:end))),...
       [szA(1:end), szB(2:end)]);
     %warning('The first dimension of B did not match the last dimension of A, so generalized outer product was assumed, extending A with singleton dimensions');
-    % TODO - this warning is very annoying, best leave it commented out until matlab fixes the stripping
-    % of trailing singleton dimensions (seems that arbitrary operations just do it automatically
   else
     error('Gergo:mply:dimsDontMatch','Dimensions of the matrices do not match');
   end
