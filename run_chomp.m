@@ -12,8 +12,8 @@ opt = chomp_options(); %Initialize default options
 
 % % Setup folder structure for local run and local data 
 %opt.data_path = '~/stanford/Tseries_20160219_Watkins_CenterOutReach_time20160219.133302.428-001/Tseries_20160219_Watkins_CenterOutReach_time20160219.133302.428-001_Cycle00001_Ch2_000001.ome.tif';
-% opt.data_path = '/Users/gergobohner/Dropbox/Gatsby/Research/forUCL/stacksForUCL/GreenChan/GreenChanB_0000.tif';
-%opt.data_path = '/Users/gergobohner/Dropbox/Gatsby/Research/forUCL/stacksForUCL/RedChan/RedChanD_0000.tif';
+opt.data_path = '/Users/gergobohner/Dropbox/Gatsby/Research/forUCL/stacksForUCL/GreenChan/GreenChanB_0000.tif';
+% opt.data_path = '/Users/gergobohner/Dropbox/Gatsby/Research/forUCL/stacksForUCL/RedChan/RedChanD_0000.tif';
 
 opt.data_type = 'frames';
 %opt.data_path = '/mnt/gatsby/nfs/data3/gergo/Neurofinder/neurofinder.00.00';
@@ -21,20 +21,22 @@ opt.data_type = 'frames';
 % opt.timestamp = '20161117T174032';
 
 %opt.data_path = '~/Data/Neurofinder/neurofinder.01.01/images/image00001.tiff';
-opt.data_path = '~/Data/Neurofinder/neurofinder.03.00/images/image00001.tiff';
-opt.src_string = '.tiff';
+%opt.data_path = '~/Data/Neurofinder/neurofinder.03.00/images/image00001.tiff';
+%opt.src_string = '.tiff';
 
-opt.m = 15;
+opt.src_string = '.tif';
+
+opt.m = 7;
 opt.stabilize = 0;
 opt.whiten = 1;
-opt.spatial_scale = 0.5;
-opt.time_scale = 0.5;
+opt.spatial_scale = 0.3;
+opt.time_scale = 0.2;
 opt.NSS = 1;
-opt.KS = 1;
-opt.mom = 1;
-opt.init_model = 'donut_marius'; %{'filled', 'donut'};
-opt.niter = 1;
-opt.learn = 0;
+opt.KS = 4;
+opt.mom = 4;
+opt.init_model = 'filled'; %{'filled', 'donut'};
+opt.niter = 3;
+opt.learn = 1;
 
 % opt.m = 7;
 % opt.stabilize = 0;
@@ -82,40 +84,45 @@ ROI_params = [0.4];
 % %opt.spatial_push = @(grid_dist)grid_dist>=(2*opt.m - 13);
 % [opt, ROI_mask, ROIs] = chomp(opt);
 
+opt.cells_per_image = 100;
+opt.spatial_push = @(grid_dist)grid_dist>=25;
+
+[opt, ROI_mask, ROIs] = chomp(opt);
+
   %%
 %Inferring with 500 cells;
-opt.cells_per_image = 1000;
-% opt.init_iter = opt.niter; %Just running the inference
-% opt.niter = opt.niter+1; %Just running the inference
+opt.cells_per_image = 400;
+opt.init_iter = opt.niter; %Just running the inference
+opt.niter = opt.niter+1; %Just running the inference
 
 % Use a less restrictive spatial push for inference
 % opt.spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(opt.m/2-1)); %@(grid_dist, sharp)logsig(sharp*grid_dist-floor(sharp*2*obj.m/2-1));
 %opt.spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(opt.m/2-1)).*(grid_dist>opt.m);
-opt.spatial_push = @(grid_dist)grid_dist>=5;
+opt.spatial_push = @(grid_dist)grid_dist>=20;
 
 [opt, ROI_mask, ROIs] = chomp(opt);
 
 % 
-% get_cell_timeseries(opt);
+get_cell_timeseries(opt);
 
 %% Show evaluation results with neurofinder script
 
-
-% Make sure that the "neurofinder" script is on Matlab's PATH
-PATH = getenv('PATH');
-if isempty(strfind(PATH, '/Users/gergobohner/anaconda2/bin'))
-  setenv('PATH', [PATH ':/Users/gergobohner/anaconda2/bin']);
-end
-  
-figure;
-for num_cells = [10, 30, 50:50:1000]
-
-  eval_command = ['neurofinder evaluate ' fileparts(fileparts(opt.data_path)) '/regions/regions.json'...
-    ' ' ROI_to_json(opt, ROIs, num_cells)];
-  [status,cmdout] = unix(eval_command,'-echo');
-  
-  recall = str2num(cmdout((strfind(cmdout, '"recall"') + 10):(strfind(cmdout, '"combined"') - 3)));
-  precision = str2num(cmdout((strfind(cmdout, '"precision"') + 13):(strfind(cmdout, '"inclusion"') - 3)));
-  
-  scatter(recall, precision); hold on;
-end
+% 
+% % Make sure that the "neurofinder" script is on Matlab's PATH
+% PATH = getenv('PATH');
+% if isempty(strfind(PATH, '/Users/gergobohner/anaconda2/bin'))
+%   setenv('PATH', [PATH ':/Users/gergobohner/anaconda2/bin']);
+% end
+%   
+% figure;
+% for num_cells = [10, 30, 50:50:1000]
+% 
+%   eval_command = ['neurofinder evaluate ' fileparts(fileparts(opt.data_path)) '/regions/regions.json'...
+%     ' ' ROI_to_json(opt, ROIs, num_cells)];
+%   [status,cmdout] = unix(eval_command,'-echo');
+%   
+%   recall = str2num(cmdout((strfind(cmdout, '"recall"') + 10):(strfind(cmdout, '"combined"') - 3)));
+%   precision = str2num(cmdout((strfind(cmdout, '"precision"') + 13):(strfind(cmdout, '"inclusion"') - 3)));
+%   
+%   scatter(recall, precision); hold on;
+% end

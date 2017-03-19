@@ -71,14 +71,17 @@ W(:,1:min(size(W,2),k)) = U(:,1:min(size(W,2),k));
 % 
 % W = reshape(W,m^2,[]);
 
-%Make sure all Ws are positive near the center
-[~, mask] = transform_inds_circ(0,0,150,opt.m,max((opt.m-5)/2,1),0);
-mask = logical(mask);
-for k = 1:size(W,2)
-  if sum(W(mask(:),k)) < sum(W(~mask(:),k))
-    W(:,k) = -1.*W(:,k);
-  end
-end
+% %Make sure all Ws are positive near the center
+% [~, mask] = transform_inds_circ(0,0,150,opt.m,max((opt.m-5)/2,1),0);
+% mask = logical(mask);
+% for k = 1:size(W,2)
+%   if sum(W(mask(:),k)) < sum(W(~mask(:),k))
+%     W(:,k) = -1.*W(:,k);
+%   end
+% end
+
+% TOTHINK: Shift W-s to have a certain mean, then renormalise them to 1 norm
+
 
 end
 

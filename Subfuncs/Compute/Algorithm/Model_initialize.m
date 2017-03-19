@@ -9,7 +9,8 @@ function [W,  Worig]  = Model_initialize( opt )
     init_model = opt.init_model{type};
     switch init_model
       case 'filled'
-        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,0); % . , . , ., filter size, circle outer radius, inner hole radius
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-3)/2,0); % . , . , ., filter size, circle outer radius, inner hole radius
+        mask(mask==0) = -0.1;
         W(:,opt.Wblocks{type}(1)) = mask(:);
       case 'supervised'
         %learn the best basis functions from varargin{2}, which should be a

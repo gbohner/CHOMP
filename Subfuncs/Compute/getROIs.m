@@ -8,9 +8,9 @@ load(get_path(opt, 'output_iter', opt.niter), 'model');
 %update_visualize( y_orig,H,reshape(W,opt.m,opt.m,size(W,2)),opt,1);
 
 if nargin>1
-  num_reconst = varargin{1};
+  to_reconst = varargin{1};
 else
-  num_reconst = length(H);
+  to_reconst = 1:length(H);
 end
 
 if nargin>2
@@ -23,7 +23,7 @@ end
 
 sz = size(y);
 
-ROIs = cell(num_reconst,1);
+ROIs = cell(numel(to_reconst),1);
 switch opt.ROI_type
     case 'quantile'
       ROI_image = zeros(sz(1:2));
@@ -40,13 +40,13 @@ switch opt.ROI_type
       ROI_image = zeros(szRaw(1:2));
 end
 
-for i1 = 1:num_reconst
+for i1 = to_reconst
   [row,col,type] = ind2sub(sz,H(i1));
-%   if opt.mom>=2 %Then reconstruct variance image
-%     reconst = reshape(W(:,opt.Wblocks{type})*(X(i1, opt.NSS*opt.KS+opt.Wblocks{type})'), opt.m, opt.m);
-%   else
+  if opt.mom>=2 %Then reconstruct variance image
+    reconst = reshape(W(:,opt.Wblocks{type})*(X(i1, opt.NSS*opt.KS+opt.Wblocks{type})'), opt.m, opt.m);
+  else
     reconst =  reshape(W(:,opt.Wblocks{type})*(X(i1, opt.Wblocks{type})'), opt.m, opt.m); %use mean image reconstruction
-%   end
+  end
   
   reconst_orig = reconst;
   reconst = imrotate(reconst, 180); %TODO think about if we need to
@@ -104,6 +104,7 @@ for i1 = 1:num_reconst
       last_ind = find(reconst_vals == last_val,1,'last');
       reconst(:) = 0;
       reconst(tmp_ind(1:last_ind))=1;
+      %reconst = bwconvhull(reconst); % Generate convex hull to have a single continous region 
       ROI_image(inds{1},inds{2}) = reconst(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2));
     otherwise
       error('CHOMP:roi:method',  'Region of interest option string (opt.ROI_type) does not correspond to implemented options.')

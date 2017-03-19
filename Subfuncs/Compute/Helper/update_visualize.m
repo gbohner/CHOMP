@@ -40,7 +40,7 @@ alphaspace = logspace(1,0,numel(H))/10; %TODO make that it is according to the s
 	
     figure(1); 
 			if cur_pc == 0, set(gcf, 'Visible', 'off'), end
-			visualSS(Wi, 4, KS, [-1 1]); colormap('jet')
+			visualSS(Wi, 1, KS, [-1 1]); colormap('jet')
 			%if cur_pc == 0, print([opt.output_folder filesep opt.output_file_prefix '_fig1.eps'],'-depsc2'), end
 
     figure(3);

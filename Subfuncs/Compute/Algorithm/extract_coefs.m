@@ -63,13 +63,19 @@ for j = 1:opt.cells_per_image
     end
   end
   
-%     xk(xk<0) = 0; %TOTHINK
+     xk(xk<0) = 0; %TOTHINK
+     
+     
   
     %Compute delta log-likelihood blockwise
     for type = 1:Ntypes
       for mom = 1:opt.mom
         %Give relative weight to the moments based on how many elements
         %they involve
+        
+        % TOTHINK: compute the likelihood change not just based on how much
+        % the likelihood improve, but also give a penalty for using certain
+        % basis functions given their singular value during learning step
         dL_mom(:,:,type,mom) = - sum(WY(:,:,opt.Wblocks{type},mom) .* xk(:,:,opt.Wblocks{type},mom),3);
   %       if mom>=2
   %         dL_mom(:,:,mom) = dL_mom(:,:,mom)./abs(mean2(dL_mom(:,:,mom))); %normalize the moment-related discrepencies
