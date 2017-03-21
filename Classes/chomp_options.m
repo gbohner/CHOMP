@@ -46,7 +46,7 @@ classdef chomp_options < handle
      cells_per_image = 30; % the maximum number of objects to infer
      learn   = 1; % do learning?
      spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(7/2-1)); % Specified distance based function (set as [] if not desired)
-     learn_decomp = 'COV_RAW'; % COV_RAW, COV, HOSVD or MTF (MTF not implemented yet, %TODO - write R wrapper to use Kahn2015 code)
+     learn_decomp = 'NMF'; % COV_RAW, COV, HOSVD, NMF or MTF (MTF not implemented yet, %TODO - write R wrapper to use Kahn2015 code)
      diag_tensors = 0;
 
 

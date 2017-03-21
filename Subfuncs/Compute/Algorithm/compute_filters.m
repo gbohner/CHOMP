@@ -16,12 +16,11 @@ szY = chomp_size(data.proc_stack,'Y'); %size of the data tensor
 
 WY = cell(opt.NSS,1); % Projection of data onto basis functions
 WnormInv = cell(opt.NSS,1);  % Inverse Interaction between basis functions
-GW = cell(opt.NSS,1); % Effect of a reconstruction onto nearby projections
+GW = cell(opt.mom,1); % Effect of a reconstruction onto nearby projections
 
 for obj_type = 1:opt.NSS
   WY{obj_type} = cell(opt.mom,1);
   WnormInv{obj_type} = cell(opt.mom,1);
-  GW{obj_type} = cell(opt.mom,1);
   for mom1 = 1:opt.mom
     if opt.diag_tensors 
       filter_combs = opt.KS; % Fast version where we don't use combinations of filter responses for estimation
@@ -30,9 +29,10 @@ for obj_type = 1:opt.NSS
     end
     WY{obj_type}{mom1} = zeros([szY(1:2),filter_combs]); %For every location store the regression wrt all filter_combs (elements of the N_filter^mom1 projection tensor for the mom1-th moment
     WnormInv{obj_type}{mom1} = zeros([filter_combs, filter_combs]);
-    GW{obj_type}{mom1} = cell([filter_combs, filter_combs]); % This may be HUGE too big for large moments and large filter sizes - %TODO store on disk
+    GW{mom1} = cell([filter_combs*opt.NSS, filter_combs*opt.NSS]); % This may be HUGE too big for large moments and large filter sizes - %TODO store on disk
   end
 end
+
 
 %% Computing WY - projections
 
@@ -41,11 +41,8 @@ for t1 = 1:szY(end) %TODO Can be done parallelly or on GPU
   for obj_type = 1:opt.NSS
     conv_result = zeros([szY(1:2), length(opt.Wblocks{obj_type})]); % Result of the convolution with each filter belonging to the current object
     for filt = opt.Wblocks{obj_type} %Convolution with each filter for an object type
-      Wcur = W(:,filt);
-      Wcurc = Wcur(:);
-      Wcurc = Wcurc./norm(Wcurc+1e-6); % make sure it has norm of 1.
-      Wconv = reshape(Wcurc,opt.m,opt.m);
-      conv_result(:,:,filt) = conv2(data.proc_stack.Y(:,:,t1),Wconv,'same');    
+      Wconv = reshape(W(:,filt),opt.m,opt.m);
+      conv_result(:,:,mod(filt-1,opt.KS)+1) = conv2(data.proc_stack.Y(:,:,t1),Wconv,'same');    
     end
     for mom1 = 1:opt.mom  %Get raw moments of the projected time course at each possible cell location %TODO - this might be wrong, because it assumes equal weighting??? but it's filter by filter, so maybe the linear combination of filters is still linear in the higher moments %TOTHINK Nah it seems correct
       [all_combs, mom_combs] = all_filter_combs(opt.KS, mom1, opt.diag_tensors); % Get the required tensors
@@ -127,68 +124,61 @@ for obj_type = 1:opt.NSS
         % ----------------------------------------
         WnormInv{obj_type}{mom1}(filt1_ind,filt2_ind) = filt1(:)'*filt2(:);
         WnormInv{obj_type}{mom1}(filt2_ind,filt1_ind) = WnormInv{obj_type}{mom1}(filt2_ind,filt1_ind); %Use symmetricity
-        
-
-        % Computing GW - reconstruction update
-        % ----------------------------------------
-        % Each cell is going to be a cell of (2*m-1)^2 shifts and at each shift and
-        % each moment we'll have a vector of features^moment to describe how much
-        % the corresponding WY entry is modified if we set the coeffecient of active
-        % filt1 at moment mom to 1.
-        if exist(['./Subfuncs/Compute/Mex/computeGW.' mexext],'file') %Quicker c for loop
-          GW{obj_type}{mom1}{filt1_ind,filt2_ind} = computeGW(GPT,filt1,filt2,opt.m,opt.mom,mom1);
-        else %Slower Matlab for loop
-          GW{obj_type}{mom1}{filt1_ind,filt2_ind} = zeros(2*opt.m-1, 2*opt.m-1); 
-          for s1 = 1:(2*opt.m-1)
-            for s2 = 1:(2*opt.m-1)
-              GW{obj_type}{mom1}{filt1_ind,filt2_ind}(s1,s2) = filt1(GPT{s1,s2,mom1}(:,2))'* filt2(GPT{s1,s2,mom1}(:,1)); %compute the shifted effect in original space via the shift tensors GPT. Because the Worigs were computed to correspond to the best inverse of the Ws
-              GW{obj_type}{mom1}{filt2_ind,filt1_ind}(s2,s1) = GW{obj_type}{mom1}{filt1_ind,filt2_ind}(s1,s2); % Use symmetricity (Swapping both filter indices AND the shift
-            end
-          end
-        end
-      end
+      end 
     end
     WnormInv{obj_type}{mom1} = inv(WnormInv{obj_type}{mom1} + 1e-3 * eye(size(WnormInv{obj_type}{mom1}))); % Regularised inverse
   end
 end
 
 
+%% Computing GW - reconstruction update
+% ----------------------------------------
+% Each cell is going to be a cell of (2*m-1)^2 shifts and at each shift and
+% each moment we'll have a vector of features^moment to describe how much
+% the corresponding WY entry is modified if we set the coeffecient of active
+% filt1 at moment mom to 1.
+%
+% We need to compute the interaction between all filter responses,
+% regardless of objecet type, so we need an extra loop for filt2 in
+% here, and index accordingly
+
+for mom1 = 1:opt.mom
+  [all_combs, ~, comb_inds] = all_filter_combs(opt.KS, mom1, opt.diag_tensors);
+
+  all_combs = all_combs(comb_inds,:); % Use only unique combinations - everything else is (super)symmetric - be careful to symmetrize during (re)constructions 
+  szAC = size(all_combs);
+      
+  for filt1_ind = 1:size(GW{mom1},1)
+    obj_type1 = floor((filt1_ind-1)/szAC(1))+1;
+    % Compute the filter tensor
+    filt1 = get_filter_comb(W(:,opt.Wblocks{obj_type1}), all_combs(mod(filt1_ind-1,szAC(1))+1,:));
+    for filt2_ind = filt1_ind:size(GW{mom1},1)
+      obj_type2 = floor((filt2_ind-1)/szAC(1))+1;
+      filt2 = get_filter_comb(W(:,opt.Wblocks{obj_type2}), all_combs(mod(filt2_ind-1,szAC(1))+1,:));
+        
+      if exist(['./Subfuncs/Compute/Mex/computeGW.' mexext],'file') %Quicker c for loop
+        GW{mom1}{filt1_ind,filt2_ind} = computeGW(GPT,filt1,filt2,opt.m,opt.mom,mom1);
+        GW{mom1}{filt2_ind,filt1_ind} = GW{mom1}{filt1_ind,filt2_ind}';
+      else %Slower Matlab for loop
+        GW{mom1}{filt1_ind,filt2_ind} = zeros(2*opt.m-1, 2*opt.m-1); 
+        for s1 = 1:(2*opt.m-1)
+          for s2 = 1:(2*opt.m-1)
+            GW{mom1}{filt1_ind,filt2_ind}(s1,s2) = filt1(GPT{s1,s2,mom1}(:,2))'* filt2(GPT{s1,s2,mom1}(:,1)); %compute the shifted effect in original space via the shift tensors GPT. Because the Worigs were computed to correspond to the best inverse of the Ws
+            GW{mom1}{filt2_ind,filt1_ind}(s2,s1) = GW{mom1}{filt1_ind,filt2_ind}(s1,s2); % Use symmetricity (Swapping both filter indices AND the shift
+          end
+        end
+      end
+    end
+  end
+end
+
 clearvars -except WY GW WnormInv
 
 
-function [all_combs, mom_combs, comb_inds, comb_inds_rev] = all_filter_combs(n_filt, k_choose, only_diag)
-% ALL_FILTER_COMBS - Returns all required combinations given opt.KS filters
-% and a mom1-combination 
-  if only_diag
-    all_combs = repmat((1:n_filt)',1,k_choose); % Only use [1 1 1 1], [2 2 2 2], etc [opt.KS opt.KS opt.KS opt.KS] type rows (diagonal elements of the moment tensor)
-  else
-    all_combs = unique(nchoosek(repmat(1:n_filt,1,k_choose), k_choose), 'rows');  
-    % Returns all unique mom1-combinations of opt.KS filters (with repetition) as rows.
-    % Also using this way of listing all_combs will ensure that if we
-    % reshape our vector we get the correct tensor
-  end
-    
-  % Find the moment combinations given the filter combinations (i.e. aggregating the numbers picked multiple times);
-  mom_combs = zeros(size(all_combs,1), n_filt); 
-  
-  for i11 = 1:size(all_combs,1)
-    mom_combs(i11,:) = histc(all_combs(i11,:),1:n_filt);
-  end
-
-  % Find the unique rows of mom_combs, exploiting the known supersymmetry of
-  % our tensors
-  [mom_combs, comb_inds, comb_inds_rev] = unique(mom_combs,'rows','stable');
-end
 
 
-function filt = get_filter_comb(W, filt_comb)
-  % Given a set of filters and a row of all_combs, return the requested combination
-  filt = W(:, filt_comb(1));
-  for i11 = 2:size(filt_comb,2)
-    % Make sure everything we do is (super)symmetric!
-    filt = symmetrise(mply(filt,  W(:, filt_comb(i11))', 0)); % always add an extra dim by multiplying from the right with a row vector
-  end
-end
+
+
 
 end
 

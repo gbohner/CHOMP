@@ -32,7 +32,10 @@ function [W,  Worig]  = Model_initialize( opt )
       case 'donut_marius'
         [~, mask_outer] = transform_inds_circ(0,0,150,opt.m,(opt.m-5)/2,max((opt.m-9),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
         [~, mask_inner] = transform_inds_circ(0,0,150,opt.m,(opt.m-9)/2,0); % . , . , ., filter size, circle outer radius, inner hole radius
-        W(:,opt.Wblocks{type}(1)) = mask_outer(:)-0.5*mask_inner(:);
+        mask = mask_outer(:)-0.5*mask_inner(:);
+        mask(mask==0) = -0.1;
+        W(:,opt.Wblocks{type}(1)) = mask;
+        
       case 'given'
         W(:,opt.Wblocks{type}) = opt.init_W(:,opt.Wblocks{type});
       otherwise
@@ -54,7 +57,9 @@ function [W,  Worig]  = Model_initialize( opt )
 %   end
   
   % Make sure that basis function column norms are ~1. 
-  W = bsxfun(@times, W, 1./sum(W.^2+1e-6,1));
+  for i1 = 1:size(W,2)
+    W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
+  end
   
  
   
