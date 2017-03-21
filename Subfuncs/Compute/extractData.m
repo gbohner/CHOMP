@@ -173,6 +173,9 @@ else %Handle the data loading-preprocessing-saving
       end
   end
   
+%   % Make sure that all values are positive to use NMF-like techniques
+%   data.proc_stack.Y(:, :, :) = data.proc_stack.Y(:, :, :) - min(min(min(data.proc_stack.Y(:, :, :))));
+  
 
   inp = chomp_input(opt,data, y, y_orig,V); %The input class that stores raw and preproc data
   

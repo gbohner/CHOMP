@@ -23,6 +23,21 @@ function [W,  Worig]  = Model_initialize( opt )
       case 'donut'
         [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,(opt.m-5)/2); % . , . , ., filter size, circle outer radius, inner hole radius
         W(:,opt.Wblocks{type}(1)) = mask(:);
+<<<<<<< HEAD
+=======
+      case 'donut_two'
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,max((opt.m-5),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        W(:,opt.Wblocks{type}(1)) = mask(:);
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-3)/2,max((opt.m-7),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        W(:,opt.Wblocks{type}(2)) = mask(:);
+      case 'donut_marius'
+        [~, mask_outer] = transform_inds_circ(0,0,150,opt.m,(opt.m-5)/2,max((opt.m-9),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
+        [~, mask_inner] = transform_inds_circ(0,0,150,opt.m,(opt.m-9)/2,0); % . , . , ., filter size, circle outer radius, inner hole radius
+        mask = mask_outer(:)-0.5*mask_inner(:);
+        mask(mask==0) = -0.1;
+        W(:,opt.Wblocks{type}(1)) = mask;
+        
+>>>>>>> 365c77f... Reconciled the required changes in extract_coefs and learning, add all_filter_combs and get_filter_comb to deal with all combinations of higher order filter combinations, added NMF learning type to update_dict and chomp_options
       case 'given'
         W(:,opt.Wblocks{type}) = opt.init_W(:,opt.Wblocks{type});
       otherwise
@@ -44,7 +59,9 @@ function [W,  Worig]  = Model_initialize( opt )
 %   end
   
   % Make sure that basis function column norms are ~1. 
-  W = bsxfun(@times, W, 1./sum(W.^2+1e-6,1));
+  for i1 = 1:size(W,2)
+    W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
+  end
   
  
   

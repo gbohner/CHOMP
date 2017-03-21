@@ -6,7 +6,9 @@ function [W] = update_dict(datas,Hs,W,opts,k,type)
 
 if iscell(opts), opt=opts{1}; else opt = opts; end
   
-if strcmp(opt.learn_decomp,'COV_RAW')
+if strcmp(opt.learn_decomp,'NMF')
+  [patches, num_cells, col_count] = pick_patches(datas,Hs,opts,type,3);
+elseif strcmp(opt.learn_decomp,'COV_RAW')
   [patch_cov, num_cells, col_count] = pick_patches(datas,Hs,opts,type, 2);
 elseif strcmp(opt.learn_decomp,'COV')
   [patch_cov, num_cells, col_count] = pick_patches(datas,Hs,opts,type, 1);
@@ -27,6 +29,8 @@ switch opt.learn_decomp
   case 'COV'
     [U,Sv,explained] = pcacov(patch_cov);
     Sv = sqrt(Sv*(col_count-num_cells));
+  case 'NMF'
+    U = nnmf(reshape(patches-min(patches(:)), size(patches,1),[]), k);
   case 'MTF'
     %TODO Maybe sometime later
   case 'HOSVD'
@@ -37,12 +41,20 @@ switch opt.learn_decomp
 end
     
 
-if opt.fig >1
-  figure(12);
-  plot(diag(Sv)); title('singular values of HOSVD')
-end
+% if opt.fig >1
+%   figure(12);
+%   plot(diag(Sv)); title('singular values of HOSVD')
+% end
 
 W(:,1:min(size(W,2),k)) = U(:,1:min(size(W,2),k));
+
+% Make sure that basis functions are zerosum norms are ~1. 
+for i1 = 1:size(W,2)
+  W(:,i1) = W(:,i1) - mean(W(:,i1));
+  W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
+  W(:,i1) = W(:,i1) + 0.5/size(W,1);
+  W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
+end
 
 % %Hacky translation step by Marius
 % m = opt.m;

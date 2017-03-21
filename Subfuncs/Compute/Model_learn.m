@@ -78,6 +78,13 @@ for n = (inp.opt.init_iter+1):inp.opt.niter
         fprintf(' took %.2f seconds\n',toc(utic))
       end
     end
+    
+    %Visualize model
+    if inp.opt.fig >0
+      update_visualize(model.y,model.H, ...
+        reshape(W,model.opt.m,model.opt.m,size(model.W,ndims(model.W))),...
+        model.opt,1);
+    end
      
     if inp.opt.verbose
       fprintf('Iteration %d/%d finished, elapsed time is %0.2f seconds\n', n, inp.opt.niter, toc(ltic))

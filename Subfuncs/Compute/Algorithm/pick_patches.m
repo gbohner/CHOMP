@@ -9,7 +9,9 @@ if ~iscell(opts), opts = {opts}; end
 do_cov = 2; 
 % 0 - return all n order patches, 
 % 1 - return covariance matrix build from n-order patches, 
-% 2- return covariance matrix built from raw patches
+% 2 - return covariance matrix built from raw patches
+% 3 - return raw patches (width x height x t x cells)
+
 if nargin > 4 %Check if we want to just output the covariance matrix instantly
   do_cov = varargin{1};
 end
@@ -26,35 +28,37 @@ parfor c1 = 1:numel(datas)
   
   %Remove entries from H that are the wrong type
   h1 = 1;
-  while h1<=numel(H)
-    [~,~,cur_type] = ind2sub([szY(1:2) opt.NSS],H(h1));
-    if cur_type ~= type, H(h1) = []; else h1 = h1+1; end
+  while h1<=size(H,1)
+    cur_type = H(h1,3);
+    if cur_type ~= type, H(h1,:) = []; else h1 = h1+1; end
   end
   
   
   if do_cov
     py{c1} = struct('mat',zeros(opt.m^2), 'count', 0);
   else
-    py{c1} = cell(numel(H),1);
+    py{c1} = cell(size(H,1),1);
   end
   
   if ~isempty(H)
-    patches = get_patch(data.proc_stack, opt, H);
+    patches = get_patch(data.proc_stack, opt, sub2ind([szY(1:2) opt.NSS], H(:,1), H(:,2), H(:,3)));
   else
     continue;
   end
   
-  num_cells(c1,1) = numel(H);
+  num_cells(c1,1) = size(H,1);
   
-  if do_cov == 2
-    %Just build the covariance matrix out of the raw patch samples
+  
+  if do_cov == 2 %Just build the covariance matrix out of the raw patch samples
     patches = reshape(patches,opt.m^2,[]);
     patches = bsxfun(@minus, patches, mean(patches,2));
     py{c1}.count = size(patches,2);
     py{c1}.mat = (patches * patches');
+  elseif do_cov == 3 % Return raw patches (space x time x cell_id)
+    py{c1} = reshape(patches,[opt.m^2,size(patches,3),size(patches,4)]);
   else
     %Process the individual patches to get n-order estimates
-    for h1 = 1:numel(H)
+    for h1 = 1:size(H,1)
       %disp(h1);
       curpy = get_n_order_patch(patches(:,:,:,h1), opt, szY);
       %Also weigth every moment tensor according to the number of independent
@@ -81,15 +85,23 @@ end
 
 opt = opts{1};
 
-if do_cov
+if do_cov == 1 || do_cov == 2
   out = zeros(opt.m^2, opt.m^2);
   col_count = 0;
-  for c1 = 1:numel(py);
+  for c1 = 1:numel(py)
     %Combine all the info from all datasets, with numerical stability
     weigth = (py{c1}.count - 1);
     out = out + py{c1}.mat./weigth; %number of samples
     col_count = col_count + py{c1}.count;
   end
+elseif do_cov == 3
+  out = [];
+  for c1 = 1:numel(datas)
+    out = cat(3, out, py{c1});
+  end
+  num_cells = size(out,3);
+  col_count = size(out,2)*size(out,3);
+  return
 else
   %Concatanate the results into a
   out={};
