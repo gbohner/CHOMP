@@ -29,7 +29,6 @@ if opt.fig > 1
 end
 
 Ntypes = opt.NSS;
-m = opt.m;
 szWY = size(WY{1}{1}); % DataWidth * DataHeight * n_filter
 
 n_regressors = zeros(opt.mom,1);
@@ -52,6 +51,8 @@ Mask = double(Mask);
 %TODO: Maybe modify it such that mask is per object type
 
 %% Initialize coefficients and likelihood maps
+
+WYorig = WY; % TODO - Store only for testing purposes
 
 dL_mom = zeros([szWY(1:2),Ntypes,opt.mom]);
 dL = zeros([szWY(1:2), Ntypes]); % delta log likelihood
@@ -76,24 +77,25 @@ for j = 1:opt.cells_per_image
           mply(WY{obj_type}{mom1}, WnormInv{obj_type}{mom1}, 1);
         
         % xk{obj_type}{mom1}(xk{obj_type}{mom1}<0) = 0; %TOTHINK - NMF style constraint
+        
+        %Compute delta log-likelihood - we'll update it in small areas
+        dL_mom(:,:,obj_type,mom1) = ...
+          -sum(WY{obj_type}{mom1} .* xk{obj_type}{mom1},3);
       end
     end
   end
   
   % xk(xk<0) = 0; %TOTHINK
-     
-  %Compute delta log-likelihood blockwise
+  
+  % Renormalise
   for obj_type=1:opt.NSS
+    mom_weights = zeros(opt.mom,1);
     for mom1 = 1:opt.mom
         % TOTHINK: Give relative weight to the moments based on how many elements
         %they involve
         
-        dL_mom(:,:,obj_type,mom1) = ...
-          -sum(WY{obj_type}{mom1} .* xk{obj_type}{mom1},3);
-        
-        % Renormalise
-        dL_mom(:,:,obj_type,mom1) = ...
-          dL_mom(:,:,obj_type,mom1) ./ norm(reshape(dL_mom(:,:,obj_type,mom1),1,[]));
+        % Use the inverse norm as weighting for the summation;
+        mom_weights(mom1,1) = 1./norm(reshape(dL_mom(:,:,obj_type,mom1),1,[])); 
         
         % TOTHINK: compute the likelihood change not just based on how much
         % the likelihood improve, but also give a penalty for using certain
@@ -104,10 +106,11 @@ for j = 1:opt.cells_per_image
   %       end
 %        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
     end
-%     dL = - sum(sum(WY .* xk,3),4); % Add contribution from each map and each moment
     
-    dL(:,:,obj_type) = sum(dL_mom(:,:,obj_type,:),4); %linear sum of individual zscored differences %TODO GMM version of "zscoring jointly"
-%     dL = dL_mom(:,:,4); % Make it kurtosis pursuit
+    %linear sum of individual zscored differences %TODO GMM version of "zscoring jointly"
+
+    dL(:,:,obj_type) = mply(dL_mom(:,:,obj_type,:), mom_weights, 1); 
+%     dL = dL_mom(:,:,obj_type,4); % Make it kurtosis pursuit
   end
 
   % Find maximum decrease  
@@ -135,13 +138,22 @@ for j = 1:opt.cells_per_image
 %     set(0,'CurrentFigure',h_dl3); imagesc(dL_mom(:,:,1,min(2,size(dL_mom,4))).*Mask); colorbar; axis square; pause(0.05);
   
     if opt.fig >2
+      
+      [~,rl,~] = reconstruct_cell( opt, W, X(1:j,:));
+      
+      full_reconst = zeros(szWY(1:2));
+      for c1 = 1:size(rl{1},3)
+        row_hat = H(c1,1); col_hat = H(c1,2);
+        [inds, cut] = mat_boundary(size(full_reconst),row_hat-floor(opt.m/2):row_hat+floor(opt.m/2),col_hat-floor(opt.m/2):col_hat+floor(opt.m/2));
+        full_reconst(inds{1},inds{2}) = full_reconst(inds{1},inds{2}) + rl{1}(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2),c1);
+      end
      %load(get_path(opt,'output_iter',4),'model')
      %set(0,'CurrentFigure',h_comb);
      %subplot(2,2,1); imagesc(model.y_orig); colormap gray; axis square; axis off; title('Mean Data');
-     subplot(2,2,1); imagesc(dL(:,:,1)); colormap default; colorbar; axis square; axis off; title('Total cost change');  pause(0.01);
-     subplot(2,2,3); imagesc(dL_mom(:,:,min(1,size(dL_mom,3)),min(1,size(dL_mom,4)))); colorbar; axis square; axis off; title('r=1 cost change'); pause(0.01);
-     subplot(2,2,2); imagesc(dL_mom(:,:,min(2,size(dL_mom,3)),min(2,size(dL_mom,4)))); colorbar; axis square; axis off; title('r=2 cost change'); pause(0.01);
-     subplot(2,2,4); imagesc(dL_mom(:,:,min(2,size(dL_mom,3)),min(4,size(dL_mom,4)))); colorbar; axis square; axis off; title('r=4 cost change'); pause(0.05);
+     subplot(2,2,1); imagesc(-dL(:,:,1)); colormap default; colorbar; axis square; axis off; title('Log likelihood increase');  pause(0.01);
+     subplot(2,2,3); imagesc(full_reconst); colorbar; axis square; axis off; title('Reconstructed cells'); pause(0.01); 
+     subplot(2,2,2); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(1,size(dL_mom,4)))); colorbar; axis square; axis off; title('mom=1 LL change'); pause(0.01);
+     subplot(2,2,4); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(2,size(dL_mom,4)))); colorbar; axis square; axis off; title('mom=2 LL change'); pause(0.05);
 %    set(0,'CurrentFigure',h_dl3); imagesc(Mask(:,:,1)); colorbar; axis square; pause(0.05);
     end
   end
@@ -151,28 +163,78 @@ for j = 1:opt.cells_per_image
   
   %Affected local area
   % Size(,1) : number of rows, size(,2): number of columns
- [inds, cut] = mat_boundary(szWY(1:2),row_hat-m+1:row_hat+m-1,col_hat-m+1:col_hat+m-1);
+ [inds, cut] = mat_boundary(szWY(1:2),row_hat-opt.m+1:row_hat+opt.m-1,col_hat-opt.m+1:col_hat+opt.m-1);
   
  
-
-  % Compute the changes in WY (the effect of the saved filter on nearby
-  % locations for all object types)
-  for mom1 = 1:opt.mom
-    for filt1_ind = 1:size(WY{type_hat}{mom1},3)
-      for obj_type = 1:opt.NSS
-        for filt2_ind = 1:size(WY{obj_type}{mom1},3)
-          WY{obj_type}{mom1}(inds{1},inds{2},filt2_ind) = ... 
-            WY{obj_type}{mom1}(inds{1},inds{2},filt2_ind) - ...
-            ( ...
-              GW{mom1}{filt1_ind,filt2_ind}(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2)) * ... % The large interaction tensor
-              X(j, sum([0; n_regressors(1:mom1-1)])+filt1_ind) ... % The stored filter coefficient
-            );
-        end
-      end
-    end
-  end
+ %% Update WY
+ % Compute reconstruction
+ if j==1 % Generate Wfull for each object type
+   load(get_path(opt, 'precomputed'), 'GPT');
+   Wfull = cell(opt.NSS,1);
+   for obj_type = 1:opt.NSS
+     [~,~,Wfull_cur] = reconstruct_cell( opt, W(:,opt.Wblocks{type_hat}), X(j,:));
+     Wfull{obj_type} = Wfull_cur;
+   end
+ end
  
-  % Update the changed xk values
+ reconst = reconstruct_cell( opt, W(:,opt.Wblocks{type_hat}), X(j,:),'Wfull',Wfull{type_hat});
+ 
+ % Compute change in WY (by computing the projection of order-mom
+ % reconstruction onto each order-mom filter
+ WYchange = cell(opt.NSS,1);
+ for obj_type = 1:opt.NSS
+   WYchange{obj_type} = cell(opt.mom,1);
+   for mom1 = 1:opt.mom
+%      reconst_cur = reshape(reconst{mom1},opt.m, opt.m, []); % m x m x REST tensor
+     WYchange{obj_type}{mom1} = zeros(2*opt.m-1,2*opt.m-1,size(Wfull{obj_type}{mom1},2));
+     for i1 = 1:size(Wfull{obj_type}{mom1},2) % Iterate through each filter
+       for s1 = 1:2*opt.m-1
+         for s2 = 1:2*opt.m-1
+           WYchange{obj_type}{mom1}(s1,s2,i1) = ...
+            reconst{mom1}(GPT{s1,s2,mom1}(:,2))'*Wfull{obj_type}{mom1}(GPT{s1,s2,mom1}(:,1),i1);
+         end
+       end
+%        W_cur = reshape(Wfull{obj_type}{mom1}(:,i1),[opt.m*ones(1,2*mom1),1]); % m x m x ... x m tensor (2*mom1 dimensions)
+%        for dim1 = 1:ndims(W_cur)
+%          W_cur = flip(W_cur,dim1); % flip all dimensions to work correctly with convolution
+%        end
+%        W_cur = reshape(W_cur,opt.m, opt.m, []); % m x m x REST tensor BUT with dimensions flipped accordingly for convolution
+%        for dim1 = 1:size(reconst_cur,3) % Iterate through each layer of the tensor (cause we need correlation along shifts in the first 2 dimensions, the rest stays)
+%          WYchange{obj_type}{mom1}(:,:,i1) = ...
+%            WYchange{obj_type}{mom1}(:,:,i1) + conv2(reconst_cur(:,:,dim1), W_cur(:,:,dim1),'full');
+%        end
+     end
+   
+   % Update WY
+   WY{obj_type}{mom1}(inds{1},inds{2},:) = ...
+     WY{obj_type}{mom1}(inds{1},inds{2},:) - WYchange{obj_type}{mom1};
+  end
+ end
+ 
+   
+   
+   
+ 
+%% WY UPDATE OLD (FASTER?) VERSION - SEEMS TO BE A BUG WITH GW ?
+%   % Compute the changes in WY (the effect of the saved filter on nearby
+%   % locations for all object types)
+%   for mom1 = 1:opt.mom
+%     for filt1_ind = 1:size(WY{type_hat}{mom1},3)
+%       for obj_type = 1:opt.NSS
+%         for filt2_ind = 1:size(WY{obj_type}{mom1},3)
+%           WY{obj_type}{mom1}(inds{1},inds{2},filt2_ind) = ... 
+%             WY{obj_type}{mom1}(inds{1},inds{2},filt2_ind) - ...
+%             ( ...
+%               GW{mom1}{filt1_ind,filt2_ind}(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2)) * ... % The large interaction tensor
+%               X(j, sum([0; n_regressors(1:mom1-1)])+filt1_ind) ... % The stored filter coefficient
+%             );
+%         end
+%       end
+%     end
+%   end
+%  
+  
+%% Update the changed xk values and delta log-likelihoods
   for obj_type=1:opt.NSS
     for mom1 = 1:opt.mom
       xk{obj_type}{mom1}(inds{1},inds{2},:) = ...
@@ -181,10 +243,13 @@ for j = 1:opt.cells_per_image
 %       % TOTHINK - Remove negative values
 %       xk{obj_type}{mom1}(inds{1},inds{2},:) = ...
 %         xk{obj_type}{mom1}(inds{1},inds{2},:) .* (xk{obj_type}{mom1}(inds{1},inds{2},:)>0);
+
+      dL_mom(inds{1},inds{2},obj_type,mom1) = ...
+        -sum(WY{obj_type}{mom1}(inds{1},inds{2},:) .* xk{obj_type}{mom1}(inds{1},inds{2},:),3);
     end
   end
+    
   
- 
 %    figure(4); imagesc(WY(:,:,1)); colorbar; pause(0.05);  
  
   % Update the patch around the point found

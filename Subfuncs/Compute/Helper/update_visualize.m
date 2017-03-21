@@ -133,7 +133,7 @@ alphaspace = logspace(1,0,numel(H))/10; %TODO make that it is according to the s
     I(end,:) = 0;
     I(:,end) = 0;
 
-    I = imresize(I,mag);
+    I = imresize(I,mag,'nearest');
 
     imagesc(I, clims);
 
@@ -141,7 +141,7 @@ alphaspace = logspace(1,0,numel(H))/10; %TODO make that it is according to the s
     colormap('gray')
     % colorbar
     % iptsetpref('ImshowBorder','tight'); 
-    truesize;  
+    %truesize;  
     drawnow
   end
       

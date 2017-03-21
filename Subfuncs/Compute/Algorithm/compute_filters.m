@@ -41,7 +41,7 @@ for t1 = 1:szY(end) %TODO Can be done parallelly or on GPU
   for obj_type = 1:opt.NSS
     conv_result = zeros([szY(1:2), length(opt.Wblocks{obj_type})]); % Result of the convolution with each filter belonging to the current object
     for filt = opt.Wblocks{obj_type} %Convolution with each filter for an object type
-      Wconv = reshape(W(:,filt),opt.m,opt.m);
+      Wconv = imrotate(reshape(W(:,filt),opt.m,opt.m),180); % Need to rotate 180 degrees so it works correct with conv2
       conv_result(:,:,mod(filt-1,opt.KS)+1) = conv2(data.proc_stack.Y(:,:,t1),Wconv,'same');    
     end
     for mom1 = 1:opt.mom  %Get raw moments of the projected time course at each possible cell location %TODO - this might be wrong, because it assumes equal weighting??? but it's filter by filter, so maybe the linear combination of filters is still linear in the higher moments %TOTHINK Nah it seems correct
@@ -123,10 +123,10 @@ for obj_type = 1:opt.NSS
         % Computing WnormInv - reconstruction update
         % ----------------------------------------
         WnormInv{obj_type}{mom1}(filt1_ind,filt2_ind) = filt1(:)'*filt2(:);
-        WnormInv{obj_type}{mom1}(filt2_ind,filt1_ind) = WnormInv{obj_type}{mom1}(filt2_ind,filt1_ind); %Use symmetricity
+        WnormInv{obj_type}{mom1}(filt2_ind,filt1_ind) = WnormInv{obj_type}{mom1}(filt1_ind,filt2_ind); %Use symmetricity
       end 
     end
-    WnormInv{obj_type}{mom1} = inv(WnormInv{obj_type}{mom1} + 1e-3 * eye(size(WnormInv{obj_type}{mom1}))); % Regularised inverse
+    WnormInv{obj_type}{mom1} = inv(WnormInv{obj_type}{mom1} + 1e-6 * eye(size(WnormInv{obj_type}{mom1}))); % Regularised inverse
   end
 end
 
@@ -156,15 +156,15 @@ for mom1 = 1:opt.mom
       obj_type2 = floor((filt2_ind-1)/szAC(1))+1;
       filt2 = get_filter_comb(W(:,opt.Wblocks{obj_type2}), all_combs(mod(filt2_ind-1,szAC(1))+1,:));
         
-      if exist(['./Subfuncs/Compute/Mex/computeGW.' mexext],'file') %Quicker c for loop
+      if 0==0 % exist(['./Subfuncs/Compute/Mex/computeGW.' mexext],'file') %Quicker c for loop
         GW{mom1}{filt1_ind,filt2_ind} = computeGW(GPT,filt1,filt2,opt.m,opt.mom,mom1);
-        GW{mom1}{filt2_ind,filt1_ind} = GW{mom1}{filt1_ind,filt2_ind}';
+        GW{mom1}{filt2_ind,filt1_ind} = rot90(GW{mom1}{filt1_ind,filt2_ind},2); % See explaination in Matlab version
       else %Slower Matlab for loop
         GW{mom1}{filt1_ind,filt2_ind} = zeros(2*opt.m-1, 2*opt.m-1); 
         for s1 = 1:(2*opt.m-1)
           for s2 = 1:(2*opt.m-1)
             GW{mom1}{filt1_ind,filt2_ind}(s1,s2) = filt1(GPT{s1,s2,mom1}(:,2))'* filt2(GPT{s1,s2,mom1}(:,1)); %compute the shifted effect in original space via the shift tensors GPT. Because the Worigs were computed to correspond to the best inverse of the Ws
-            GW{mom1}{filt2_ind,filt1_ind}(s2,s1) = GW{mom1}{filt1_ind,filt2_ind}(s1,s2); % Use symmetricity (Swapping both filter indices AND the shift
+            GW{mom1}{filt2_ind,filt1_ind}(2*opt.m-s1,2*opt.m-s2) = GW{mom1}{filt1_ind,filt2_ind}(s1,s2); % Use symmetricity (Swapping filter indices causes the shift to be reflected around the (m,m) point as origin, when we swap filters thus s -> 2m-s
           end
         end
       end

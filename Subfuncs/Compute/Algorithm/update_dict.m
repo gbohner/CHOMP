@@ -48,13 +48,13 @@ end
 
 W(:,1:min(size(W,2),k)) = U(:,1:min(size(W,2),k));
 
-% Make sure that basis functions are zerosum norms are ~1. 
-for i1 = 1:size(W,2)
-  W(:,i1) = W(:,i1) - mean(W(:,i1));
-  W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
-  W(:,i1) = W(:,i1) + 0.5/size(W,1);
-  W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
-end
+% % Make sure that basis functions are zerosum norms are ~1. 
+% for i1 = 1:size(W,2)
+%   W(:,i1) = W(:,i1) - mean(W(:,i1));
+%   W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
+%   W(:,i1) = W(:,i1) + 0.5/size(W,1);
+%   W(:,i1) = W(:,i1)./norm(W(:,i1)+1e-6);
+% end
 
 % %Hacky translation step by Marius
 % m = opt.m;
