@@ -45,13 +45,8 @@ classdef chomp_options < handle
       %     relweight = 10; % weighting between importance of covariance / mean (automatically set to 'optimal' value in Shared_main/extract_coefs.m)
      cells_per_image = 30; % the maximum number of objects to infer
      learn   = 1; % do learning?
-<<<<<<< HEAD
-     spatial_push % = @(grid_dist)logsig(0.5*grid_dist-floor(options.m/2-1)); % Specified distance based function (set as [] if not desired)
-     learn_decomp = 'COV_RAW'; % COV_RAW, COV, HOSVD or MTF (MTF not implemented yet, %TODO - write R wrapper to use Kahn2015 code)
-=======
      spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(7/2-1)); % Specified distance based function (set as [] if not desired)
      learn_decomp = 'NMF'; % COV_RAW, COV, HOSVD, NMF or MTF (MTF not implemented yet, %TODO - write R wrapper to use Kahn2015 code)
->>>>>>> 365c77f... Reconciled the required changes in extract_coefs and learning, add all_filter_combs and get_filter_comb to deal with all combinations of higher order filter combinations, added NMF learning type to update_dict and chomp_options
      diag_tensors = 0;
 
 

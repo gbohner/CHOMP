@@ -80,27 +80,13 @@ for j = 1:opt.cells_per_image
     end
   end
   
-<<<<<<< HEAD
-%     xk(xk<0) = 0; %TOTHINK
-=======
   % xk(xk<0) = 0; %TOTHINK
      
-     
->>>>>>> 365c77f... Reconciled the required changes in extract_coefs and learning, add all_filter_combs and get_filter_comb to deal with all combinations of higher order filter combinations, added NMF learning type to update_dict and chomp_options
-  
   %Compute delta log-likelihood blockwise
   for obj_type=1:opt.NSS
     for mom1 = 1:opt.mom
         % TOTHINK: Give relative weight to the moments based on how many elements
         %they involve
-<<<<<<< HEAD
-        dL_mom(:,:,type,mom) = - sum(WY(:,:,opt.Wblocks{type},mom) .* xk(:,:,opt.Wblocks{type},mom),3);
-  %       if mom>=2
-  %         dL_mom(:,:,mom) = dL_mom(:,:,mom)./abs(mean2(dL_mom(:,:,mom))); %normalize the moment-related discrepencies
-  %       end
-        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
-      end
-=======
         
         dL_mom(:,:,obj_type,mom1) = ...
           -sum(WY{obj_type}{mom1} .* xk{obj_type}{mom1},3);
@@ -118,7 +104,6 @@ for j = 1:opt.cells_per_image
   %       end
 %        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
     end
->>>>>>> 365c77f... Reconciled the required changes in extract_coefs and learning, add all_filter_combs and get_filter_comb to deal with all combinations of higher order filter combinations, added NMF learning type to update_dict and chomp_options
 %     dL = - sum(sum(WY .* xk,3),4); % Add contribution from each map and each moment
     
     dL(:,:,obj_type) = sum(dL_mom(:,:,obj_type,:),4); %linear sum of individual zscored differences %TODO GMM version of "zscoring jointly"
@@ -129,12 +114,6 @@ for j = 1:opt.cells_per_image
   [AbsMin, ind] = min( dL(:).*repmat(Mask(:),Ntypes,1) );
   [row_hat, col_hat, type_hat] = ind2sub(size(dL),ind); 
     
-<<<<<<< HEAD
-    %Check if there is not enough likelihood decrease anymore
-    if AbsMin > 0
-      break;
-    end
-=======
   %Store the values
   H(j, :) = [row_hat, col_hat, type_hat]; % Estimated location and type
   for mom1 = 1:opt.mom
@@ -146,10 +125,7 @@ for j = 1:opt.cells_per_image
   %Check if there is not enough likelihood decrease anymore
   if AbsMin >= 0
     break;
-  end
->>>>>>> 365c77f... Reconciled the required changes in extract_coefs and learning, add all_filter_combs and get_filter_comb to deal with all combinations of higher order filter combinations, added NMF learning type to update_dict and chomp_options
-  
-    
+  end    
     
     
   if opt.fig >1
