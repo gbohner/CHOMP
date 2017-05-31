@@ -69,6 +69,8 @@ pause(0.3);
 
 %% Getting timeseries from ROIs
 szY = chomp_size(data.proc_stack, 'Y');
+szYorig = chomp_size(data.raw_stack, 'Y');
+szY = [szY(1:2) szYorig(3)];
 timeseries = zeros(size(H,1), szY(3));
 
 
