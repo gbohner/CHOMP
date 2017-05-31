@@ -56,7 +56,7 @@ if ~opt.stabilize,return; end
     
     opt.data_path = get_path(opt, 'raw_stabilized_frames',1); %Set the data_path to the stabilized frames
     opt.data_path = opt.data_path(length(opt.root_folder)+1:end);
-    opt.src_string = '*.tif';
+    opt.src_string = '.tif';
     
     if opt.verbose
       fprintf('\nImage stack stabilized, saved in folder %s\n', get_path(opt, 'raw_stabilized_frames'));
