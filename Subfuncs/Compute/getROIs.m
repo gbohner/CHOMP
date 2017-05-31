@@ -18,7 +18,7 @@ end
 if nargin>2
   if varargin{2}
     %Get random ROIs
-    H = floor(1+rand(size(H)).*numel(y));
+    H = floor(1+rand(size(H,1)).*numel(y));
     X = randn(size(X));
   end
 end
@@ -43,14 +43,24 @@ switch opt.ROI_type
 end
 
 
-[all_reconst,all_reconst_lowdim] = reconstruct_cell( opt, W, X);
+Wfull = cell(opt.NSS,1);
+for obj_type = 1:opt.NSS
+  [~,~,Wfull_cur] = reconstruct_cell( opt, W(:,opt.Wblocks{obj_type}), X(1,:));
+  Wfull{obj_type} = Wfull_cur;
+end
+
+
+% [all_reconst,all_reconst_lowdim] = reconstruct_cell( opt, W, X);
 
 for i1 = to_reconst
   row = H(i1, 1); col = H(i1, 2); type = H(i1, 3);
 %   if opt.mom>=2 %Then reconstruct variance image
 %     reconst = all_reconst_lowdim{2}(:,:,i1);
 %   else
-    reconst = all_reconst_lowdim{1}(:,:,i1);
+  [reconst_full, reconst_lowdim, ~] = reconstruct_cell(...
+        opt, W(:,opt.Wblocks{type}), X(i1,:),'Wfull',Wfull{type});
+
+  reconst = reconst_lowdim{1}(:,:,1);
   
   reconst_orig = reconst;
   
