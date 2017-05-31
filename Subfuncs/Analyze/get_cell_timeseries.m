@@ -19,7 +19,7 @@ opt=inp.opt;
 %% Getting ROIs
 [H, W, X, y_orig, y, L] = model.get_fields( 'H', 'W', 'X', 'y_orig','y','L');
 if opt.fig
-  update_visualize( y_orig,H,reshape(W,opt.m,opt.m,size(W,2)),opt,1,0);
+  update_visualize( y,H,reshape(W,opt.m,opt.m,size(W,2)),opt,1,0);
 end
 % opt.ROI_type = 'quantile';
 % opt.ROI_params = 0.6;
@@ -29,11 +29,11 @@ end
 h_roi_figure= figure;
 if ~opt.fig, set(h_roi_figure,'Visible','off'); end 
 % subplottight(2, 1, 2);
-h_rois = imagesc(model.y); colormap gray; axis image;
+h_rois = imagesc(model.y_orig); colormap gray; axis image;
 hold on;
 mycolor = 'rymg';
 
-for i1 = 1:min(numel(ROIs),50)%[1, 80, 243, 180, 200, 262, 16]%1:400%1:min(numel(ROIs),50)
+for i1 = 1:min(numel(ROIs),20)%[1, 80, 243, 180, 200, 262, 16]%1:400%1:min(numel(ROIs),50)
   to_draw = bwboundaries(ROIs{i1}.mask);
   for c1 = 1:numel(to_draw)
     to_draw{c1}(:,2) = to_draw{c1}(:,2)+ROIs{i1}.col-ceil(size(ROIs{i1}.mask,2)/2);
@@ -89,7 +89,7 @@ save(get_path(opt,'results'),'timeseries','ROIs','ROI_mask','patches','model','o
 
 if 1
   figure; 
-  to_plot = [1:min(size(timeseries,1),50)];%[15:20];%[10:15]+30;
+  to_plot = [1:min(size(timeseries,1),20)];%[15:20];%[10:15]+30;
   %v = max(std(timeseries(to_plot,:),1))*2;
   v = 5; yticks = []; yticklabels = {};
   for i1 = to_plot
