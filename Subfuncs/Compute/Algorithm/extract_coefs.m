@@ -7,8 +7,12 @@ if opt.fig > 1
   h_dl = figure(7);  
   h_dl2 = figure(8);  
   h_dl3 = figure(9);
-  h_comb = figure('Units','Normalized','Position',[0.1,0.1,0.7,0.8]);
-  if opt.fig >2
+  if opt.fig > 2
+    h_comb = figure(107);
+    set(h_comb,'Units','Normalized')
+    set(h_comb,'Position',[0.1,0.1,0.7,0.8]);
+  end
+  if opt.fig >3
 %     Video_dl = VideoWriter('likelihood_map.avi');
 %     Video_dl.FrameRate = 2;
 %     open(Video_dl);
@@ -25,95 +29,131 @@ if opt.fig > 1
 end
 
 Ntypes = opt.NSS;
-m = opt.m;
-sz = size(WY);
+szWY = size(WY{1}{1}); % DataWidth * DataHeight * n_filter
 
-H = zeros(opt.cells_per_image,1); %Location (linearized index)
-X = zeros(opt.cells_per_image, size(W,2) * opt.mom); % Basis function coefficients
-L = zeros(opt.cells_per_image,1); % Likelihood gains
+n_regressors = zeros(opt.mom,1);
+for mom1 = 1:opt.mom
+  n_regressors(mom1) = size(WY{1}{mom1},3);
+end
+
+H = zeros(opt.cells_per_image,3); %Location (row, col, type)
+X = zeros(opt.cells_per_image, sum(n_regressors)); % Basis function coefficients
+L = zeros(opt.cells_per_image, opt.mom); % Likelihood gains
 
 
 if opt.mask
   Mask = varargin{1};
 else
-  Mask = ones(size(WY,1),size(WY,2)); % Possible cell placements (no overlap / nearby cells);
+  Mask = ones(szWY(1:2)); % Possible cell placements (no overlap / nearby cells);
 end
 Mask(1:opt.m,:) = 0; Mask(end-opt.m:end,:) = 0; Mask(:, 1:opt.m) = 0; Mask(:, end-opt.m:end) = 0;%Don't allow cells near edges
 Mask = double(Mask);
 %TODO: Maybe modify it such that mask is per object type
 
+%% Initialize coefficients and likelihood maps
 
-dL_mom = zeros([size(WY,1),size(WY,2),Ntypes,opt.mom]);
-dL = zeros([size(WY,1),size(WY,2), Ntypes]); % delta log likelihood
-xk = zeros([size(WY,1),size(WY,2), size(W,2), opt.mom]); % Coefficients for the mean image filter reconstruction
+WYorig = WY; % TODO - Store only for testing purposes
 
+dL_mom = zeros([szWY(1:2),Ntypes,opt.mom]);
+dL = zeros([szWY(1:2), Ntypes]); % delta log likelihood
+xk = cell(opt.NSS,1); % Coefficients for image filter reconstruction
+for obj_type=1:opt.NSS
+  xk{obj_type} = cell(opt.mom,1);
+%   for mom1 = 1:opt.mom
+%     xk{obj_type}{mom1} = zeros(size(WY{obj_type}{mom1}));
+%   end
+end
+
+%% Locate cells 
 
 for j = 1:opt.cells_per_image
   
-  % Update delta log-likelihoods
+  % Compute delta log-likelihoods
   if j == 1
-    %Reset filter coefficients
-    xk(:) = 0;
-
-    %Update filter coefficients (MAP estimate)
-    for map = 1:size(W,2)
-      for mom = 1:opt.mom
-        xk(:,:,:,mom) = xk(:,:,:,mom) + reshape(reshape(WY(:,:,map,mom),prod(sz(1:2)),1)*WnormInv(map,:,mom),[sz(1),sz(2),size(W,2)]);
+    % Compute filter coefficients (MAP estimate)
+    for obj_type=1:opt.NSS
+      for mom1 = 1:opt.mom
+        xk{obj_type}{mom1} = ...
+          mply(WY{obj_type}{mom1}, WnormInv{obj_type}{mom1}, 1);
+        
+        % xk{obj_type}{mom1}(xk{obj_type}{mom1}<0) = 0; %TOTHINK - NMF style constraint
+        
+        %Compute delta log-likelihood - we'll update it in small areas
+        dL_mom(:,:,obj_type,mom1) = ...
+          -sum(WY{obj_type}{mom1} .* xk{obj_type}{mom1},3);
       end
     end
   end
   
-%     xk(xk<0) = 0; %TOTHINK
+  % xk(xk<0) = 0; %TOTHINK
   
-    %Compute delta log-likelihood blockwise
-    for type = 1:Ntypes
-      for mom = 1:opt.mom
-        %Give relative weight to the moments based on how many elements
+  % Renormalise
+  for obj_type=1:opt.NSS
+    mom_weights = zeros(opt.mom,1);
+    for mom1 = 1:opt.mom
+        % TOTHINK: Give relative weight to the moments based on how many elements
         %they involve
-        dL_mom(:,:,type,mom) = - sum(WY(:,:,opt.Wblocks{type},mom) .* xk(:,:,opt.Wblocks{type},mom),3);
+        
+        % Use the inverse norm as weighting for the summation;
+        mom_weights(mom1,1) = 1./norm(reshape(dL_mom(:,:,obj_type,mom1),1,[])); 
+        
+        % TOTHINK: compute the likelihood change not just based on how much
+        % the likelihood improve, but also give a penalty for using certain
+        % basis functions given their singular value during learning step
+        % dL_mom(:,:,obj_type,mom) = - sum(WY(:,:,opt.Wblocks{type},mom) .* xk(:,:,opt.Wblocks{type},mom),3);
   %       if mom>=2
   %         dL_mom(:,:,mom) = dL_mom(:,:,mom)./abs(mean2(dL_mom(:,:,mom))); %normalize the moment-related discrepencies
   %       end
-        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
-      end
-%     dL = - sum(sum(WY .* xk,3),4); % Add contribution from each map and each moment
-    
-      dL(:,:,type) = sum(dL_mom(:,:,type,:),4); %linear sum of individual zscored differences %TODO GMM version of "zscoring jointly"
-%     dL = dL_mom(:,:,4); % Make it kurtosis pursuit
+%        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
     end
+    
+    %linear sum of individual zscored differences %TODO GMM version of "zscoring jointly"
 
-    % Find maximum decrease  
-    [AbsMin, ind] = min( dL(:).*repmat(Mask(:),Ntypes,1) );
-    [row, col, type] = ind2sub(size(dL),ind);
+    dL(:,:,obj_type) = mply(dL_mom(:,:,obj_type,:), mom_weights, 1); 
+%     dL = dL_mom(:,:,obj_type,4); % Make it kurtosis pursuit
+  end
+
+  % Find maximum decrease  
+  [AbsMin, ind] = min( dL(:).*repmat(Mask(:),Ntypes,1) );
+  [row_hat, col_hat, type_hat] = ind2sub(size(dL),ind); 
     
-    %Store the values (before changing them below, omg...)
-    H(j) = ind;
-    for mom = 1:opt.mom
-      X(j,(mom-1)*size(W,2)+opt.Wblocks{type}) = reshape(xk(row,col,(mom-1)*size(W,2)+opt.Wblocks{type}),1,[]); %TODO, check if leaving a bunch of zeros in X is reasonable, or rather have it just be size of opt.KSS and choose the respective block of W later
-    end
-    L(j,:) = AbsMin;
-    
-    %Check if there is not enough likelihood decrease anymore
-    if AbsMin > 0
-      break;
-    end
-  
-    
+  %Store the values
+  H(j, :) = [row_hat, col_hat, type_hat]; % Estimated location and type
+  for mom1 = 1:opt.mom
+    X(j, sum([0; n_regressors(1:mom1-1)])+1:sum(n_regressors(1:mom1))) = ...
+      squeeze(xk{type_hat}{mom1}(row_hat,col_hat,:));
+  end
+  L(j,:) = squeeze(dL_mom(row_hat,col_hat,type_hat,:)); % Estimated likelihood gain per moment
+
+  %Check if there is not enough likelihood decrease anymore
+  if AbsMin >= 0
+    break;
+  end    
     
     
   if opt.fig >1
 %     set(0,'CurrentFigure',h_dl); imagesc(dL_mom(:,:,1)); colorbar; pause(0.05);
-    set(0,'CurrentFigure',h_dl); imagesc(dL(:,:,1).*Mask); colorbar; axis square;  pause(0.05);
-    set(0,'CurrentFigure',h_dl2); imagesc(dL_mom(:,:,1,min(1,size(dL_mom,4))).*Mask); colorbar; axis square; pause(0.05);
-    set(0,'CurrentFigure',h_dl3); imagesc(dL_mom(:,:,1,min(2,size(dL_mom,4))).*Mask); colorbar; axis square; pause(0.05);
+%     set(0,'CurrentFigure',h_dl); imagesc(dL(:,:,1).*Mask); colorbar; axis square;  pause(0.05);
+%     set(0,'CurrentFigure',h_dl2); imagesc(dL_mom(:,:,1,min(1,size(dL_mom,4))).*Mask); colorbar; axis square; pause(0.05);
+%     set(0,'CurrentFigure',h_dl3); imagesc(dL_mom(:,:,1,min(2,size(dL_mom,4))).*Mask); colorbar; axis square; pause(0.05);
   
     if opt.fig >2
-     load(get_path(opt,'output_iter',4),'model')
-     set(0,'CurrentFigure',h_comb);
-     subplot(2,2,1); imagesc(model.y_orig); colormap gray; axis square; axis off; title('Data');
-     subplot(2,2,3); imagesc(dL(:,:,1).*Mask); colormap default; colorbar; axis square; axis off; title('Total cost change');  pause(0.05);
-     subplot(2,2,2); imagesc(dL_mom(:,:,1,min(1,size(dL_mom,4))).*Mask); colorbar; axis square; axis off; title('r=1 cost change'); pause(0.05);
-     subplot(2,2,4); imagesc(dL_mom(:,:,1,min(2,size(dL_mom,4))).*Mask); colorbar; axis square; axis off; title('r=2 cost change'); pause(0.05);
+      
+      [~,rl,~] = reconstruct_cell( opt, W, X(1:j,:));
+      
+      full_reconst = zeros(szWY(1:2));
+      for c1 = 1:size(rl{1},3)
+        row_hat = H(c1,1); col_hat = H(c1,2);
+        [inds, cut] = mat_boundary(size(full_reconst),row_hat-floor(opt.m/2):row_hat+floor(opt.m/2),col_hat-floor(opt.m/2):col_hat+floor(opt.m/2));
+        full_reconst(inds{1},inds{2}) = full_reconst(inds{1},inds{2}) + rl{1}(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2),c1);
+      end
+     %load(get_path(opt,'output_iter',4),'model')
+     %set(0,'CurrentFigure',h_comb);
+     %subplot(2,2,1); imagesc(model.y_orig); colormap gray; axis square; axis off; title('Mean Data');
+     subplot(2,2,1); imagesc(-dL(:,:,1)); colormap default; colorbar; axis square; axis off; title('Log likelihood increase');  pause(0.01);
+     subplot(2,2,3); imagesc(full_reconst); colorbar; axis square; axis off; title('Reconstructed cells'); pause(0.01); 
+     subplot(2,2,2); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(1,size(dL_mom,4)))); colorbar; axis square; axis off; title('mom=1 LL change'); pause(0.01);
+     subplot(2,2,4); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(2,size(dL_mom,4)))); colorbar; axis square; axis off; title('mom=2 LL change'); pause(0.05);
 %    set(0,'CurrentFigure',h_dl3); imagesc(Mask(:,:,1)); colorbar; axis square; pause(0.05);
     end
   end
@@ -123,38 +163,102 @@ for j = 1:opt.cells_per_image
   
   %Affected local area
   % Size(,1) : number of rows, size(,2): number of columns
- [inds, cut] = mat_boundary(sz(1:2),row-m+1:row+m-1,col-m+1:col+m-1);
+ [inds, cut] = mat_boundary(szWY(1:2),row_hat-opt.m+1:row_hat+opt.m-1,col_hat-opt.m+1:col_hat+opt.m-1);
   
  
-
-  % Compute the changes in WY and xk;
-  for map = 1:size(W,2)
-   for mom = 1:opt.mom
-     for map2 = 1:size(W,2)
-      WY(inds{1},inds{2},map2, mom) = WY(inds{1},inds{2},map2, mom) - ...
-        GW{map,map2,mom}(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2))*xk(row,col,map+(mom-1)*size(W,2));
-     end
+ %% Update WY
+ % Compute reconstruction
+ if j==1 % Generate Wfull for each object type
+   load(get_path(opt, 'precomputed'), 'GPT');
+   Wfull = cell(opt.NSS,1);
+   for obj_type = 1:opt.NSS
+     [~,~,Wfull_cur] = reconstruct_cell( opt, W(:,opt.Wblocks{type_hat}), X(j,:));
+     Wfull{obj_type} = Wfull_cur;
    end
+ end
+ 
+ reconst = reconstruct_cell( opt, W(:,opt.Wblocks{type_hat}), X(j,:),'Wfull',Wfull{type_hat});
+ 
+ % Compute change in WY (by computing the projection of order-mom
+ % reconstruction onto each order-mom filter
+ WYchange = cell(opt.NSS,1);
+ for obj_type = 1:opt.NSS
+   WYchange{obj_type} = cell(opt.mom,1);
+   for mom1 = 1:opt.mom
+%      reconst_cur = reshape(reconst{mom1},opt.m, opt.m, []); % m x m x REST tensor
+     WYchange{obj_type}{mom1} = zeros(2*opt.m-1,2*opt.m-1,size(Wfull{obj_type}{mom1},2));
+     for i1 = 1:size(Wfull{obj_type}{mom1},2) % Iterate through each filter
+       for s1 = 1:2*opt.m-1
+         for s2 = 1:2*opt.m-1
+           WYchange{obj_type}{mom1}(s1,s2,i1) = ...
+            reconst{mom1}(GPT{s1,s2,mom1}(:,2))'*Wfull{obj_type}{mom1}(GPT{s1,s2,mom1}(:,1),i1);
+         end
+       end
+%        W_cur = reshape(Wfull{obj_type}{mom1}(:,i1),[opt.m*ones(1,2*mom1),1]); % m x m x ... x m tensor (2*mom1 dimensions)
+%        for dim1 = 1:ndims(W_cur)
+%          W_cur = flip(W_cur,dim1); % flip all dimensions to work correctly with convolution
+%        end
+%        W_cur = reshape(W_cur,opt.m, opt.m, []); % m x m x REST tensor BUT with dimensions flipped accordingly for convolution
+%        for dim1 = 1:size(reconst_cur,3) % Iterate through each layer of the tensor (cause we need correlation along shifts in the first 2 dimensions, the rest stays)
+%          WYchange{obj_type}{mom1}(:,:,i1) = ...
+%            WYchange{obj_type}{mom1}(:,:,i1) + conv2(reconst_cur(:,:,dim1), W_cur(:,:,dim1),'full');
+%        end
+     end
+   
+   % Update WY
+   WY{obj_type}{mom1}(inds{1},inds{2},:) = ...
+     WY{obj_type}{mom1}(inds{1},inds{2},:) - WYchange{obj_type}{mom1};
   end
+ end
  
-  %Recompute the changed xk values
+   
+   
+   
  
-  xk(inds{1},inds{2},:,:) = 0; 
-  for map = 1:size(W,2)
-    for mom = 1:opt.mom
-      xk(inds{1},inds{2},:,mom) = xk(inds{1},inds{2},:,mom) + reshape(reshape(WY(inds{1},inds{2},map,mom),numel(inds{1})*numel(inds{2}),1)*WnormInv(map,:,mom),[numel(inds{1}),numel(inds{2}),size(W,2)]);
+%% WY UPDATE OLD (FASTER?) VERSION - SEEMS TO BE A BUG WITH GW ?
+%   % Compute the changes in WY (the effect of the saved filter on nearby
+%   % locations for all object types)
+%   for mom1 = 1:opt.mom
+%     for filt1_ind = 1:size(WY{type_hat}{mom1},3)
+%       for obj_type = 1:opt.NSS
+%         for filt2_ind = 1:size(WY{obj_type}{mom1},3)
+%           WY{obj_type}{mom1}(inds{1},inds{2},filt2_ind) = ... 
+%             WY{obj_type}{mom1}(inds{1},inds{2},filt2_ind) - ...
+%             ( ...
+%               GW{mom1}{filt1_ind,filt2_ind}(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2)) * ... % The large interaction tensor
+%               X(j, sum([0; n_regressors(1:mom1-1)])+filt1_ind) ... % The stored filter coefficient
+%             );
+%         end
+%       end
+%     end
+%   end
+%  
+  
+%% Update the changed xk values and delta log-likelihoods
+  for obj_type=1:opt.NSS
+    for mom1 = 1:opt.mom
+      xk{obj_type}{mom1}(inds{1},inds{2},:) = ...
+        mply(WY{obj_type}{mom1}(inds{1},inds{2},:), WnormInv{obj_type}{mom1}, 1);
+      
+%       % TOTHINK - Remove negative values
+%       xk{obj_type}{mom1}(inds{1},inds{2},:) = ...
+%         xk{obj_type}{mom1}(inds{1},inds{2},:) .* (xk{obj_type}{mom1}(inds{1},inds{2},:)>0);
+
+      dL_mom(inds{1},inds{2},obj_type,mom1) = ...
+        -sum(WY{obj_type}{mom1}(inds{1},inds{2},:) .* xk{obj_type}{mom1}(inds{1},inds{2},:),3);
     end
   end
- 
+    
+  
 %    figure(4); imagesc(WY(:,:,1)); colorbar; pause(0.05);  
  
   % Update the patch around the point found
 %   Mask(max(row-3,1):min(row+3,end),max(col-3,1):min(col+3,end),type) = 0; % Make it impossible to put cells to close to eachother
 %   Mask(max(row-1,1):min(row+1,end),max(col-1,1):min(col+1,end),:) = 0; % Make it impossible to put cells to close to eachother
-    Mask(row,col,:) = 0; %Make it impossible to put a cell into the exact same location
+    Mask(row_hat,col_hat,:) = 0; %Make it impossible to put a cell into the exact same location
   
 if ~isempty(opt.spatial_push)
-  [yinds, ycut] = mat_boundary(sz(1:2),row-opt.m:row+opt.m,col-opt.m:col+opt.m);  
+  [yinds, ycut] = mat_boundary(szWY(1:2),row_hat-opt.m:row_hat+opt.m,col_hat-opt.m:col_hat+opt.m);  
   [gridx,gridy] = meshgrid((-opt.m+ycut(1,1)):(opt.m-ycut(1,2)),(-opt.m+ycut(2,1)):(opt.m-ycut(2,2))); %make sure to cut the corresponding dimensions using ycut
   gridx = gridx'; gridy = gridy'; %meshgrid(1:n,1:m) creates mxn matrices, need to transpose
   
@@ -163,7 +267,7 @@ if ~isempty(opt.spatial_push)
   Mask(yinds{1},yinds{2},:) = Mask(yinds{1},yinds{2},:).*repmat(grid_dist,[1,1,size(Mask,3)]); % Make it impossible to put cells to close to eachother
 end
   
- if opt.fig >2
+ if opt.fig >3
 %   writeVideo(Video_dl, getframe(h_dl));
 %   writeVideo(Video_dl2, getframe(h_dl2));
 %   writeVideo(Video_dl3, getframe(h_dl3));
@@ -172,7 +276,7 @@ end
 %   disp([num2str(j) ' cells found, current type: ' num2str(type)]);
 end
 
-  if opt.fig >2 
+  if opt.fig >3 
 %     close(Video_dl);
 %     close(Video_dl2);
 %     close(Video_dl3);

@@ -8,15 +8,17 @@ load(get_path(opt, 'output_iter', opt.niter), 'model');
 %update_visualize( y_orig,H,reshape(W,opt.m,opt.m,size(W,2)),opt,1);
 
 if nargin>1
-  num_reconst = varargin{1};
+  to_reconst = varargin{1};
+  num_reconst = max(varargin{1});
 else
-  num_reconst = length(H);
+  to_reconst = 1:size(H,1);
+  num_reconst = size(H,1);
 end
 
 if nargin>2
   if varargin{2}
     %Get random ROIs
-    H = floor(1+rand(size(H)).*numel(y));
+    H = floor(1+rand(size(H,1)).*numel(y));
     X = randn(size(X));
   end
 end
@@ -40,17 +42,27 @@ switch opt.ROI_type
       ROI_image = zeros(szRaw(1:2));
 end
 
-for i1 = 1:num_reconst
-  [row,col,type] = ind2sub(sz,H(i1));
+
+Wfull = cell(opt.NSS,1);
+for obj_type = 1:opt.NSS
+  [~,~,Wfull_cur] = reconstruct_cell( opt, W(:,opt.Wblocks{obj_type}), X(1,:));
+  Wfull{obj_type} = Wfull_cur;
+end
+
+
+% [all_reconst,all_reconst_lowdim] = reconstruct_cell( opt, W, X);
+
+for i1 = to_reconst
+  row = H(i1, 1); col = H(i1, 2); type = H(i1, 3);
 %   if opt.mom>=2 %Then reconstruct variance image
-%     reconst = reshape(W(:,opt.Wblocks{type})*(X(i1, opt.NSS*opt.KS+opt.Wblocks{type})'), opt.m, opt.m);
+%     reconst = all_reconst_lowdim{2}(:,:,i1);
 %   else
-    reconst =  reshape(W(:,opt.Wblocks{type})*(X(i1, opt.Wblocks{type})'), opt.m, opt.m); %use mean image reconstruction
-%   end
+  [reconst_full, reconst_lowdim, ~] = reconstruct_cell(...
+        opt, W(:,opt.Wblocks{type}), X(i1,:),'Wfull',Wfull{type});
+
+  reconst = reconst_lowdim{1}(:,:,1);
   
   reconst_orig = reconst;
-  reconst = imrotate(reconst, 180); %TODO think about if we need to
-  %rotate, make sure its in accordance with the convolution procedure
   
   if opt.fig>=3
     figure; imagesc(reconst); pause(0.2);

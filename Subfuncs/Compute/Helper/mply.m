@@ -5,6 +5,7 @@ function C = mply( A, B, dims )
 %   want to merge with leading dimensions of B
 %
 %   Written by Gergo Bohner <gbohner@gatsby.ucl.ac.uk> - 2015/07/13
+%   Last updated by Gergo Bohner <gbohner@gatsby.ucl.ac.uk> - 2017/03/19
 
 if nargin <3 
   dims = 1;
@@ -38,7 +39,7 @@ if dims == 1
       reshape(A,prod(szA(1:end)),1)*...
       reshape(B,szB(1),prod(szB(2:end))),...
       [szA(1:end), szB(2:end)]);
-    warning('The first dimension of B did not match the last dimension of A, so generalized outer product was assumed, extending A with singleton dimensions');
+    %warning('The first dimension of B did not match the last dimension of A, so generalized outer product was assumed, extending A with singleton dimensions');
   else
     error('Gergo:mply:dimsDontMatch','Dimensions of the matrices do not match');
   end

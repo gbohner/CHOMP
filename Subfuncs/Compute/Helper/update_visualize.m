@@ -61,7 +61,7 @@ alphaspace = logspace(1,0,numel(H))/10; %TODO make that it is according to the s
     hold on
     axis image
     for i12 = show_specific%[1,5,10,20,30, 50] %1:length(col)
-      [row,col,type] = ind2sub(size(y),H(i12));
+      row = H(i12,1); col = H(i12,2); type=H(i12,3);
       if show_numbers
         text(col, row, num2str(i12), 'Color',mycolor(mod(type-1,length(mycolor))+1),'FontSize',20,'FontWeight','bold');
       else
@@ -133,7 +133,7 @@ alphaspace = logspace(1,0,numel(H))/10; %TODO make that it is according to the s
     I(end,:) = 0;
     I(:,end) = 0;
 
-    I = imresize(I,mag);
+    I = imresize(I,mag,'nearest');
 
     imagesc(I, clims);
 
@@ -141,7 +141,7 @@ alphaspace = logspace(1,0,numel(H))/10; %TODO make that it is according to the s
     colormap('gray')
     % colorbar
     % iptsetpref('ImshowBorder','tight'); 
-    truesize;  
+    %truesize;  
     drawnow
   end
       

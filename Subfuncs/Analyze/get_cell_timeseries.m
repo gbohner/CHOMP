@@ -19,21 +19,25 @@ opt=inp.opt;
 %% Getting ROIs
 [H, W, X, y_orig, y, L] = model.get_fields( 'H', 'W', 'X', 'y_orig','y','L');
 if opt.fig
-  update_visualize( y_orig,H,reshape(W,opt.m,opt.m,size(W,2)),opt,1,0);
+  update_visualize( y,H,reshape(W,opt.m,opt.m,size(W,2)),opt,1,0);
 end
-%opt.ROI_type = 'quantile_dynamic_origsize';
-[ROI_mask, ROIs] = getROIs(opt, numel(H),0);
+% opt.ROI_type = 'quantile';
+% opt.ROI_params = 0.6;
+[ROI_mask, ROIs] = getROIs(opt);
+
+%% Showing ROIs
 h_roi_figure= figure;
 if ~opt.fig, set(h_roi_figure,'Visible','off'); end 
 % subplottight(2, 1, 2);
-h_rois = imagesc(model.y); colormap gray; axis image;
+h_rois = imagesc(model.y_orig); colormap gray; axis image;
 hold on;
 mycolor = 'rymg';
-for i1 = 1:min(numel(ROIs),100)
+
+for i1 = 1:min(numel(ROIs),20)%[1, 80, 243, 180, 200, 262, 16]%1:400%1:min(numel(ROIs),50)
   to_draw = bwboundaries(ROIs{i1}.mask);
   for c1 = 1:numel(to_draw)
-    to_draw{c1}(:,2) = to_draw{c1}(:,2)+ROIs{i1}.col-floor(opt.m/2);
-    to_draw{c1}(:,1) = to_draw{c1}(:,1)+ROIs{i1}.row-floor(opt.m/2);
+    to_draw{c1}(:,2) = to_draw{c1}(:,2)+ROIs{i1}.col-ceil(size(ROIs{i1}.mask,2)/2);
+    to_draw{c1}(:,1) = to_draw{c1}(:,1)+ROIs{i1}.row-ceil(size(ROIs{i1}.mask,1)/2);
     line(to_draw{c1}(:,2), to_draw{c1}(:,1), 'Color', mycolor(mod(ROIs{i1}.type-1,length(mycolor))+1),'LineWidth',2);
   end
   text(ROIs{i1}.col-5, ROIs{i1}.row, num2str(i1), 'Color', mycolor(mod(ROIs{i1}.type-1,length(mycolor))+1),'FontSize',20,'FontWeight','bold');
@@ -64,12 +68,18 @@ pause(0.3);
 
 
 %% Getting timeseries from ROIs
-szY = chomp_size(data.raw_stack, 'Y');
-timeseries = zeros(numel(H), szY(3));
+szY = chomp_size(data.proc_stack, 'Y');
+szYorig = chomp_size(data.raw_stack, 'Y');
+szY = [szY(1:2) szYorig(3)];
+timeseries = zeros(size(H,1), szY(3));
 
-patches = get_patch(data.raw_stack,opt,H,1:szY(3),'scaled',1);
 
-for i1 = 1:numel(H)
+% Uses a ton of memory
+patches = get_patch(data.raw_stack,opt,sub2ind(szY(1:2),H(:,1),H(:,2)),1:szY(3),'scaled',1);
+
+for i1 = 1:size(H,1)
+  % % Uses low memory but more file access
+  % patches = get_patch(data.raw_stack,opt,H(i1),1:szY(3),'scaled',0);
   timeseries(i1,:) = mply(ROIs{i1}.mask, patches(:,:,:,i1),2)./sum(ROIs{i1}.mask(:));
 end
 
@@ -81,7 +91,7 @@ save(get_path(opt,'results'),'timeseries','ROIs','ROI_mask','patches','model','o
 
 if 1
   figure; 
-  to_plot = [1:min(size(timeseries,1),50)];%[15:20];%[10:15]+30;
+  to_plot = [1:min(size(timeseries,1),20)];%[15:20];%[10:15]+30;
   %v = max(std(timeseries(to_plot,:),1))*2;
   v = 5; yticks = []; yticklabels = {};
   for i1 = to_plot
