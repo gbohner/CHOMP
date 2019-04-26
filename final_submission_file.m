@@ -78,8 +78,8 @@ results = [results, struct('dataset', '03.00.test', 'regions', cur_regions_struc
 
 
 % Dataset 04.00.test
-cur_regions = loadjson('/nfs/data/gergo/Neurofinder_update/neurofinder.04.00.test/CHOMP/results/sources_20170727T153355.json');
-%cur_regions = loadjson('/nfs/data/gergo/Neurofinder_update/neurofinder.04.00.test/CHOMP/results/sources_20170816T130548.json');
+%cur_regions = loadjson('/nfs/data/gergo/Neurofinder_update/neurofinder.04.00.test/CHOMP/results/sources_20170727T153355.json');
+cur_regions = loadjson('/nfs/data/gergo/Neurofinder_update/neurofinder.04.00.test/CHOMP/results/sources_20170816T130548.json');
 cur_regions_struct = struct('coordinates',[]);
 for i1 = 1:length(cur_regions)
   cur_regions_struct(i1).coordinates = cur_regions{i1}.coordinates;
