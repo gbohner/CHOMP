@@ -126,7 +126,10 @@ for obj_type = 1:opt.NSS
         WnormInv{obj_type}{mom1}(filt2_ind,filt1_ind) = WnormInv{obj_type}{mom1}(filt1_ind,filt2_ind); %Use symmetricity
       end 
     end
-    WnormInv{obj_type}{mom1} = inv(WnormInv{obj_type}{mom1} + 1e-6 * eye(size(WnormInv{obj_type}{mom1}))); % Regularised inverse
+    
+    reg = 1e-6 * eye(size(WnormInv{obj_type}{mom1})); % Simple regularisation    
+    WnormInv{obj_type}{mom1} = inv(WnormInv{obj_type}{mom1} + mean(diag(WnormInv{obj_type}{mom1}))*reg);
+    
   end
 end
 

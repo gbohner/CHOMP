@@ -19,7 +19,7 @@ end
 py = cell(numel(datas),1);
 num_cells = zeros(numel(datas,1));
 
-parfor c1 = 1:numel(datas)
+for c1 = 1:numel(datas)
   data = datas{c1};
   H = Hs{c1};
   opt = opts{c1};

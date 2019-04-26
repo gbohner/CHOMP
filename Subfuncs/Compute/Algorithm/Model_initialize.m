@@ -16,9 +16,10 @@ function [W,  Worig]  = Model_initialize( opt )
         %collection of examples or alternative a set of locations within
         %the dataset (in which case just call an update_dict with the
         %preset H)
+        
       case 'pointlike'
         % Initialize the to a dot/small circle
-        [~, mask] = transform_inds_circ(0,0,150,opt.m,min((opt.m-1)/2,3),0);
+        [~, mask] = transform_inds_circ(0,0,150,opt.m,1,0);
         W(:,opt.Wblocks{type}(1)) = mask(:);
       case 'donut'
         [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-1)/2,max((opt.m-7),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
@@ -28,12 +29,13 @@ function [W,  Worig]  = Model_initialize( opt )
         W(:,opt.Wblocks{type}(1)) = mask(:);
         [~, mask] = transform_inds_circ(0,0,150,opt.m,(opt.m-3)/2,max((opt.m-7),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
         W(:,opt.Wblocks{type}(2)) = mask(:);
-      case 'donut_marius'
-        [~, mask_outer] = transform_inds_circ(0,0,150,opt.m,(opt.m-5)/2,max((opt.m-9),2)/2); % . , . , ., filter size, circle outer radius, inner hole radius
-        [~, mask_inner] = transform_inds_circ(0,0,150,opt.m,(opt.m-9)/2,0); % . , . , ., filter size, circle outer radius, inner hole radius
-        mask = mask_outer(:)-0.5*mask_inner(:);
+      case 'donut_conv'
+        [~, mask_outer] = transform_inds_circ(0,0,150,opt.m,ceil((opt.m-opt.m/3)/2),max(ceil((opt.m-2*opt.m/3)/2),1)); % . , . , ., filter size, circle outer radius, inner hole radius
+        [~, mask_inner] = transform_inds_circ(0,0,150,opt.m,ceil((opt.m-2*opt.m/3)/2),0); % . , . , ., filter size, circle outer radius, inner hole radius
+        mask = mask_outer-0.5*mask_inner;
         mask(mask==0) = -0.1;
-        W(:,opt.Wblocks{type}(1)) = mask;
+        mask = conv2(mask, fspecial('gaussian', opt.m, opt.smooth_filter_mean), 'same');
+        W(:,opt.Wblocks{type}(1)) = mask(:);
       case 'given'
         W(:,opt.Wblocks{type}) = opt.init_W(:,opt.Wblocks{type});
       otherwise

@@ -30,7 +30,7 @@ if exist(intermediate_path, 'file')
       end
       inp.opt = struct_merge(inp.opt, opt);
       intermediate_path = get_path(inp.opt);
-      save(intermediate_path, 'inp'); %overwrite the old input file
+      save(intermediate_path, 'inp', '-v7.3'); %overwrite the old input file
     end
   end
      
@@ -63,11 +63,11 @@ else %Handle the data loading-preprocessing-saving
     end
     %Save the preprocessed stack
     data.proc_stack.Y = zeros([sz(1), sz(2), T]); % Image stack
-    im_cur = double(imread([filepath allfiles(1).name]));
-    data.proc_stack.Y(:, :,1) = imresize(im_cur,opt.spatial_scale,'bicubic');
+    im_cur = single(imread([filepath allfiles(1).name]));
+    data.proc_stack.Y(:, :,1) = imresize(im_cur,opt.spatial_scale,'bilinear');
     for i2 = 2:T
-      im_cur = double(imread([filepath allfiles(i2).name]));
-      data.proc_stack.Y(:, :,i2) = imresize(im_cur,opt.spatial_scale,'bicubic');
+      im_cur = single(imread([filepath allfiles(i2).name]));
+      data.proc_stack.Y(:, :,i2) = imresize(im_cur,opt.spatial_scale,'bilinear');
       if ~raw_stack_done, append(data.raw_stack.Y, im_cur, 'number_format','uint16'); end
     end
   elseif strcmp(opt.data_type, 'frames_virtual')
@@ -93,11 +93,11 @@ else %Handle the data loading-preprocessing-saving
       for i2 = 1:T
         im_cur = imread([filepath allfiles(i2).name]);
         if (~raw_stack_done) && (i2>1), data.raw_stack.Y(:,:,end+1) = im_cur; end
-        Ytmp(:,:,mod(i2,100)+floor(i2/100)*100) = imresize(double(im_cur),opt.spatial_scale,'bicubic');
+        Ytmp(:,:,mod(i2,100)+floor(i2/100)*100) = imresize(single(im_cur),opt.spatial_scale,'bilinear');
         if (mod(i2,100) == 0) || (i2 == T)
           if s2==0
             data.proc_stack.Y = chomp_data(get_path(opt,'virtual_stack'),Ytmp(:,:,1:(mod(min(((s2+1)*100),T)-1,100)+1)),...
-              'timestamp', opt.timestamp, 'prefix',opt.file_prefix, 'number_format','double');
+              'timestamp', opt.timestamp, 'prefix',opt.file_prefix, 'number_format','single');
           else
             append(data.proc_stack.Y, Ytmp(:,:,1:(mod(min(((s2+1)*100),T)-1,100)+1)));
           end
@@ -125,10 +125,10 @@ else %Handle the data loading-preprocessing-saving
   end
   
   %Get mean image of the raw data
-  y_orig = data.raw_stack.Y(:,:,1)./T;
   szRaw = chomp_size(data.raw_stack,'Y');
+  y_orig = data.raw_stack.Y(:,:,1)./T;
   for i1 = 2:szRaw(3)
-    y_orig = y_orig + data.raw_stack.Y(:,:,i1)./T;
+    y_orig = y_orig + data.raw_stack.Y(:,:,i1)./szRaw(3);
   end
  
   %Get mean image and variance, for cycle for virtual stack handling
@@ -153,9 +153,9 @@ else %Handle the data loading-preprocessing-saving
   % Apply normalizing filters to mean image for visualization purposes and
   % to get "mean spatial mean (A) and mean spatial variance (B)"
   if T>1
-    [y, A, B] = normal_img(double(y), opt.smooth_filter_mean , opt.smooth_filter_var ,V);
+    [y, A, B] = normal_img(single(y), opt.smooth_filter_mean , opt.smooth_filter_var ,V);
   else
-    [y, A, B] = normal_img(double(y), opt.smooth_filter_mean , opt.smooth_filter_var);
+    [y, A, B] = normal_img(single(y), opt.smooth_filter_mean , opt.smooth_filter_var);
   end
   opt.A = A;
   opt.B = B;
@@ -167,17 +167,14 @@ else %Handle the data loading-preprocessing-saving
     fprintf('\nPreprocessing image stack...');
   end
   if opt.whiten
-      for t1 = 1:T
-        tmp = squeeze(data.proc_stack.Y(:,:,t1)-opt.A) ./ (opt.B.^0.5);
-        data.proc_stack.Y(:,:,t1) = tmp;
-      end
+    data = whiten_proc(opt, data);
   end
   
 %   % Make sure that all values are positive to use NMF-like techniques
 %   data.proc_stack.Y(:, :, :) = data.proc_stack.Y(:, :, :) - min(min(min(data.proc_stack.Y(:, :, :))));
   
 
-  inp = chomp_input(opt,data, y, y_orig,V); %The input class that stores raw and preproc data
+  inp = chomp_input(opt,data, mean(data.proc_stack.Y,3), y_orig,V); %The input class that stores raw and preproc data
   
   
    %let the user create a mask over the image to limit the processed area

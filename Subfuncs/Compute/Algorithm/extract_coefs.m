@@ -4,9 +4,9 @@ function [ H, X, L] = extract_coefs( WY, GW, WnormInv, W, opt, varargin)
 
 % opt.fig = 1; %TMP
 if opt.fig > 1
-  h_dl = figure(7);  
-  h_dl2 = figure(8);  
-  h_dl3 = figure(9);
+%   h_dl = figure(7);  
+%   h_dl2 = figure(8);  
+%   h_dl3 = figure(9);
   if opt.fig > 2
     h_comb = figure(107);
     set(h_comb,'Units','Normalized')
@@ -46,7 +46,9 @@ if opt.mask
 else
   Mask = ones(szWY(1:2)); % Possible cell placements (no overlap / nearby cells);
 end
-Mask(1:opt.m,:) = 0; Mask(end-opt.m:end,:) = 0; Mask(:, 1:opt.m) = 0; Mask(:, end-opt.m:end) = 0;%Don't allow cells near edges
+
+Mask(1:floor(opt.m/4),:) = 0; Mask(end-floor(opt.m/4):end,:) = 0; Mask(:, 1:floor(opt.m/4)) = 0; Mask(:, end-floor(opt.m/4):end) = 0;%Don't allow cells near edges
+%Mask(1:floor(opt.m),:) = 0; Mask(end-floor(opt.m):end,:) = 0; Mask(:, 1:floor(opt.m)) = 0; Mask(:, end-floor(opt.m):end) = 0;%Don't allow cells near edges
 Mask = double(Mask);
 %TODO: Maybe modify it such that mask is per object type
 
@@ -70,32 +72,46 @@ for j = 1:opt.cells_per_image
   
   % Compute delta log-likelihoods
   if j == 1
-    % Compute filter coefficients (MAP estimate)
+    % Compute filter coefficients (MAP estimate)  - we'll update it in small areas
     for obj_type=1:opt.NSS
       for mom1 = 1:opt.mom
         xk{obj_type}{mom1} = ...
           mply(WY{obj_type}{mom1}, WnormInv{obj_type}{mom1}, 1);
         
         % xk{obj_type}{mom1}(xk{obj_type}{mom1}<0) = 0; %TOTHINK - NMF style constraint
-        
-        %Compute delta log-likelihood - we'll update it in small areas
-        dL_mom(:,:,obj_type,mom1) = ...
-          -sum(WY{obj_type}{mom1} .* xk{obj_type}{mom1},3);
       end
     end
   end
   
   % xk(xk<0) = 0; %TOTHINK
   
+  %Compute delta log-likelihood
+  for obj_type=1:opt.NSS
+    for mom1 = 1:opt.mom
+      
+      if isempty(opt.W_weights)
+        dL_mom(:,:,obj_type,mom1) = ...
+          -sum(WY{obj_type}{mom1} .* xk{obj_type}{mom1},3);
+      else % Compute penalised (by basis function weights) likelihood
+        Wnorm = inv(WnormInv{obj_type}{mom1});
+        dL_mom(:,:,obj_type,mom1) = ...
+          -sum(WY{obj_type}{mom1} .* ...
+            mply(WY{obj_type}{mom1}, ...
+              inv( Wnorm + mean(diag(Wnorm))*diag(opt.W_weights(opt.Wblocks{obj_type}).^2)), ...
+            1), 3);
+      end
+    end
+  end
+  
   % Renormalise
   for obj_type=1:opt.NSS
-    mom_weights = zeros(opt.mom,1);
+    mom_weights = ones(opt.mom,1);
     for mom1 = 1:opt.mom
         % TOTHINK: Give relative weight to the moments based on how many elements
         %they involve
         
-        % Use the inverse norm as weighting for the summation;
-        mom_weights(mom1,1) = 1./norm(reshape(dL_mom(:,:,obj_type,mom1),1,[])); 
+%         % Use the inverse norm as weighting for the summation;
+%         mom_weights(mom1,1) = 1./norm(reshape(dL_mom(:,:,obj_type,mom1),1,[])); 
         
         % TOTHINK: compute the likelihood change not just based on how much
         % the likelihood improve, but also give a penalty for using certain
@@ -104,7 +120,16 @@ for j = 1:opt.cells_per_image
   %       if mom>=2
   %         dL_mom(:,:,mom) = dL_mom(:,:,mom)./abs(mean2(dL_mom(:,:,mom))); %normalize the moment-related discrepencies
   %       end
-%        dL_mom(:,:,type,mom) = reshape(zscore(reshape(dL_mom(:,:,type,mom),numel(dL_mom(:,:,type,mom)),1)),size(dL_mom(:,:,type,1)));
+       szdL_mom = [size(dL_mom), 1, 1];
+       dL_mom = reshape(dL_mom, [prod(szdL_mom(1:2)), szdL_mom(3), szdL_mom(4)]);
+       dL_mom(Mask(:)>0,obj_type,mom1) = ...
+         zscore(dL_mom(Mask(:)>0,obj_type,mom1),[], 1);
+       dL_mom = reshape(dL_mom, szdL_mom);
+    end
+    
+    % If the user supplied extra weighting, apply that as well:
+    if ~isempty(opt.mom_weights)
+      mom_weights = mom_weights(:) .* opt.mom_weights(:);
     end
     
     %linear sum of individual zscored differences %TODO GMM version of "zscoring jointly"
@@ -117,6 +142,12 @@ for j = 1:opt.cells_per_image
   [AbsMin, ind] = min( dL(:).*repmat(Mask(:),Ntypes,1) );
   [row_hat, col_hat, type_hat] = ind2sub(size(dL),ind); 
     
+  %Check if there is not enough likelihood decrease anymore
+%   if AbsMin >= 0
+%     H = H(1:(j-1), :);
+%     break;
+%   end    
+  
   %Store the values
   H(j, :) = [row_hat, col_hat, type_hat]; % Estimated location and type
   for mom1 = 1:opt.mom
@@ -124,11 +155,6 @@ for j = 1:opt.cells_per_image
       squeeze(xk{type_hat}{mom1}(row_hat,col_hat,:));
   end
   L(j,:) = squeeze(dL_mom(row_hat,col_hat,type_hat,:)); % Estimated likelihood gain per moment
-
-  %Check if there is not enough likelihood decrease anymore
-  if AbsMin >= 0
-    break;
-  end    
     
     
   if opt.fig >1
@@ -150,10 +176,10 @@ for j = 1:opt.cells_per_image
      %load(get_path(opt,'output_iter',4),'model')
      %set(0,'CurrentFigure',h_comb);
      %subplot(2,2,1); imagesc(model.y_orig); colormap gray; axis square; axis off; title('Mean Data');
-     subplot(2,2,1); imagesc(-dL(:,:,1)); colormap default; colorbar; axis square; axis off; title('Log likelihood increase');  pause(0.01);
-     subplot(2,2,3); imagesc(full_reconst); colorbar; axis square; axis off; title('Reconstructed cells'); pause(0.01); 
-     subplot(2,2,2); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(1,size(dL_mom,4)))); colorbar; axis square; axis off; title('mom=1 LL change'); pause(0.01);
-     subplot(2,2,4); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(2,size(dL_mom,4)))); colorbar; axis square; axis off; title('mom=2 LL change'); pause(0.05);
+     subplot(2,2,1); imagesc(-dL(:,:,1)); colormap default; colorbar; axis square; axis off; title('Log likelihood increase');  pause(0.0001);
+     subplot(2,2,3); imagesc(full_reconst); colorbar; axis square; axis off; title('Reconstructed cells'); pause(0.0001); 
+     subplot(2,2,2); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(1,size(dL_mom,4)))); colorbar; axis square; axis off; title('mom=1 LL change'); pause(0.0001);
+     subplot(2,2,4); imagesc(-dL_mom(:,:,min(1,size(dL_mom,3)),min(4,size(dL_mom,4)))); colorbar; axis square; axis off; title(sprintf('mom=%s LL change',size(dL_mom,4))); pause(0.0005);
 %    set(0,'CurrentFigure',h_dl3); imagesc(Mask(:,:,1)); colorbar; axis square; pause(0.05);
     end
   end
@@ -163,7 +189,7 @@ for j = 1:opt.cells_per_image
   
   %Affected local area
   % Size(,1) : number of rows, size(,2): number of columns
- [inds, cut] = mat_boundary(szWY(1:2),row_hat-opt.m+1:row_hat+opt.m-1,col_hat-opt.m+1:col_hat+opt.m-1);
+ [inds, cut] = mat_boundary(szWY(1:2),(row_hat-opt.m+1):(row_hat+opt.m-1),(col_hat-opt.m+1):(col_hat+opt.m-1));
   
  
  %% Update WY
@@ -207,7 +233,7 @@ for j = 1:opt.cells_per_image
    
    % Update WY
    WY{obj_type}{mom1}(inds{1},inds{2},:) = ...
-     WY{obj_type}{mom1}(inds{1},inds{2},:) - WYchange{obj_type}{mom1};
+     WY{obj_type}{mom1}(inds{1},inds{2},:) - WYchange{obj_type}{mom1}((1+cut(1,1)):(end-cut(1,2)),(1+cut(2,1)):(end-cut(2,2)),:);
   end
  end
  
@@ -244,8 +270,8 @@ for j = 1:opt.cells_per_image
 %       xk{obj_type}{mom1}(inds{1},inds{2},:) = ...
 %         xk{obj_type}{mom1}(inds{1},inds{2},:) .* (xk{obj_type}{mom1}(inds{1},inds{2},:)>0);
 
-      dL_mom(inds{1},inds{2},obj_type,mom1) = ...
-        -sum(WY{obj_type}{mom1}(inds{1},inds{2},:) .* xk{obj_type}{mom1}(inds{1},inds{2},:),3);
+%       dL_mom(inds{1},inds{2},obj_type,mom1) = ...
+%         -sum(WY{obj_type}{mom1}(inds{1},inds{2},:) .* xk{obj_type}{mom1}(inds{1},inds{2},:),3);
     end
   end
     

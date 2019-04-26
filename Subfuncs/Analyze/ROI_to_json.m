@@ -9,6 +9,16 @@ else
   num_cells = numel(ROIs);
 end
 
+if nargin > 3
+  if varargin{2} == 1
+    extra_fname_string = ['_curtime_' datestr(now, 30)];
+  else
+    extra_fname_string = varargin{2};
+  end
+else
+  extra_fname_string = [];
+end
+
 regions = {};
 for i1 = 1:num_cells
   [rows, cols] = find(ROIs{i1}.mask);
@@ -17,7 +27,7 @@ for i1 = 1:num_cells
   regions{i1} = struct('id', i1, 'coordinates', [rows(:), cols(:)]);
 end
 
-save_path =  [opt.results_folder filesep 'sources_' opt.timestamp '.json'];
+save_path =  [opt.results_folder filesep 'sources_' opt.timestamp extra_fname_string '.json'];
 
 savejson('', regions, save_path);
 

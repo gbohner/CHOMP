@@ -5,6 +5,8 @@
 
 # OSX Dropbox
 .DS_Store
+# Linux dropbox
+.dropbox.attr
 
 # Windows default autosave extension
 *.asv

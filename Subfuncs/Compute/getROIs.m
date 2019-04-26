@@ -28,18 +28,21 @@ sz = size(y);
 ROIs = cell(num_reconst,1);
 switch opt.ROI_type
     case 'quantile'
-      ROI_image = zeros(sz(1:2));
+      ROI_image = zeros([sz(1:2), 3]);
     case 'quantile_dynamic'
-      ROI_image = zeros(sz(1:2));
+      ROI_image = zeros([sz(1:2), 3]);
+    case 'ones_origsize'
+      szRaw = size(y_orig);
+      ROI_image = zeros([szRaw(1:2), 3]);
     case 'quantile_origsize'
       szRaw = size(y_orig);
-      ROI_image = zeros(szRaw(1:2));
+      ROI_image = zeros([szRaw(1:2), 3]);
     case 'quantile_dynamic_origsize'
       szRaw = size(y_orig);
-      ROI_image = zeros(szRaw(1:2));
+      ROI_image = zeros([szRaw(1:2), 3]);
     case 'mean_origsize'
       szRaw = size(y_orig);
-      ROI_image = zeros(szRaw(1:2));
+      ROI_image = zeros([szRaw(1:2), 3]);
 end
 
 
@@ -60,11 +63,14 @@ for i1 = to_reconst
   [reconst_full, reconst_lowdim, ~] = reconstruct_cell(...
         opt, W(:,opt.Wblocks{type}), X(i1,:),'Wfull',Wfull{type});
 
-  reconst = reconst_lowdim{1}(:,:,1);
+
+  % Use variance reconstruction if available
+  reconst = reconst_lowdim{min(length(reconst_lowdim),2)}(:,:,1);
+ 
   
   reconst_orig = reconst;
   
-  if opt.fig>=3
+  if opt.fig>=4
     figure; imagesc(reconst); pause(0.2);
   end
   
@@ -73,7 +79,13 @@ for i1 = to_reconst
       reconst = reconst > quantile(reconst(:),opt.ROI_params(1));
       reconst = bwconvhull(reconst);
       [inds, cut] = mat_boundary(sz(1:2),row-floor(opt.m/2):row+floor(opt.m/2),col-floor(opt.m/2):col+floor(opt.m/2));
-      ROI_image(inds{1},inds{2}) = reconst(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2));
+    case 'ones_origsize'
+      cutsize = round(opt.m./opt.spatial_scale);
+      cutsize = cutsize + (1-mod(cutsize,2));
+      reconst = ones([cutsize,cutsize]);
+      row = round((row-1)./opt.spatial_scale)+1;
+      col = round((col-1)./opt.spatial_scale)+1;
+      [inds, cut] = mat_boundary(szRaw(1:2),row-floor(cutsize/2):row+floor(cutsize/2),col-floor(cutsize/2):col+floor(cutsize/2));
     case 'quantile_origsize'
       cutsize = round(opt.m./opt.spatial_scale);
       cutsize = cutsize + (1-mod(cutsize,2));
@@ -85,29 +97,27 @@ for i1 = to_reconst
       reconst = imerode(reconst,strel('rectangle',[3,3]));
       reconst = imerode(reconst,strel('rectangle',[3,3]));
       %reconst = bwconvhull(reconst); %looks better for visualizations
-      row = round(row./opt.spatial_scale);
-      col = round(col./opt.spatial_scale);
+      row = round((row-1)./opt.spatial_scale)+1;
+      col = round((col-1)./opt.spatial_scale)+1;
       [inds, cut] = mat_boundary(szRaw(1:2),row-floor(cutsize/2):row+floor(cutsize/2),col-floor(cutsize/2):col+floor(cutsize/2));
-      ROI_image(inds{1},inds{2}) = reconst(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2));
     case 'mean_origsize'
       cutsize = round(opt.m./opt.spatial_scale);
       cutsize = cutsize + (1-mod(cutsize,2));
       reconst = imresize(reconst,[cutsize,cutsize]);
       %reconst = reconst > quantile(reconst(:),opt.ROI_params(1));
       %reconst = bwconvhull(reconst); %looks better for visualizations
-      row = round(row./opt.spatial_scale);
-      col = round(col./opt.spatial_scale);
+      row = round((row-1)./opt.spatial_scale)+1;
+      col = round((col-1)./opt.spatial_scale)+1;
       [inds, cut] = mat_boundary(szRaw(1:2),row-floor(cutsize/2):row+floor(cutsize/2),col-floor(cutsize/2):col+floor(cutsize/2));
 %       %get the covariance between pixels of reconstruction and original
 %       %mean
 %       reconst = reconst(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2)) .* y_orig(inds{1},inds{2});
-      ROI_image(inds{1},inds{2}) = reconst(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2));
     case 'quantile_dynamic_origsize'
       cutsize = round(opt.m./opt.spatial_scale);
       cutsize = cutsize + (1-mod(cutsize,2));
       reconst = imresize(reconst,[cutsize,cutsize]);
-      row = round(row./opt.spatial_scale);
-      col = round(col./opt.spatial_scale);
+      row = round((row-1)./opt.spatial_scale)+1;
+      col = round((col-1)./opt.spatial_scale)+1;
       [inds, cut] = mat_boundary(szRaw(1:2),row-floor(cutsize/2):row+floor(cutsize/2),col-floor(cutsize/2):col+floor(cutsize/2));
       tmp = opt.ROI_params(1)*(max(reshape(y_orig(inds{1},inds{2}),1,[])')-min(reshape(y_orig(inds{1},inds{2}),1,[])'))+min(reshape(y_orig(inds{1},inds{2}),1,[])');
       tmp = sum(sum(y_orig(inds{1},inds{2})>tmp))./numel(y_orig(inds{1},inds{2})); %ratio of pixels to pick
@@ -116,10 +126,13 @@ for i1 = to_reconst
       last_ind = find(reconst_vals == last_val,1,'last');
       reconst(:) = 0;
       reconst(tmp_ind(1:last_ind))=1;
-      ROI_image(inds{1},inds{2}) = reconst(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2));
     otherwise
       error('CHOMP:roi:method',  'Region of interest option string (opt.ROI_type) does not correspond to implemented options.')
   end
+  
+  % Store all ROIs as a color image, with each ROI having a random color
+  ROI_image(inds{1},inds{2}, :) = ROI_image(inds{1},inds{2}, :) + ...
+    mply(reconst(1+cut(1,1):end-cut(1,2),1+cut(2,1):end-cut(2,2)), 0.7*randn(1,3));
   
   %Store results in cells now, later add option for json output %TODO
   ROIs{i1} = struct('col', col, 'row', row, 'type', type, 'mask', reconst, 'reconst', reconst_orig);

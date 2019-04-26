@@ -138,6 +138,7 @@ alphaspace = logspace(1,0,numel(H))/10; %TODO make that it is according to the s
     imagesc(I, clims);
 
     axis off
+    axis image
     colormap('gray')
     % colorbar
     % iptsetpref('ImshowBorder','tight'); 

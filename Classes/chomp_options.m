@@ -28,8 +28,10 @@ classdef chomp_options < handle
      spatial_scale = 1; % Rescale data spatially (so that cell size matches basis function size)
      time_scale = 1; % Rescale data temporally
      whiten = 1;
-     smooth_filter_mean % = m; %smoothing filter size for mean image
-     smooth_filter_var % = m; %smoothing filter size for variance
+     cell_pixel_fraction = []; % Estimate (upper bound) of the fraction of pixels that belong to cells
+     smooth_filter_sigma = 0.4; % Gaussian low-pass smoothing sigma (in pixels)
+     smooth_filter_mean = 0.1; % = 0.3; %smoothing filter size for mean image (smooth over a ~3x3 area by default)
+     smooth_filter_var = 4; % = m/5; %smoothing filter size for variance
      data_type = 'frames_virtual'; %Input data type (frames / stack / json / matxyt)
      src_string = 'Ch2_*'; %in case of loading multiple frames from a directory, look for this substring to load files (choose channel eg)
      mask = 0; % Set if the region of interest is only part of the image stack.
@@ -48,7 +50,9 @@ classdef chomp_options < handle
      spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(7/2-1)); % Specified distance based function (set as [] if not desired)
      learn_decomp = 'COV_RAW'; % COV_RAW, COV, HOSVD, NMF or MTF (MTF not implemented yet, %TODO - write R wrapper to use Kahn2015 code)
      diag_tensors = 0;
-
+     W_weight_type = 'uniform'; % uniform / decomp  % Type of basis function weighting during learning
+     W_weights = []; % Basis function weights
+     mom_weights = []; % Moment weights
 
     % Extracting ROIs
      ROI_type = 'quantile_dynamic_origsize';
@@ -113,9 +117,9 @@ classdef chomp_options < handle
     function obj = derive_from_m(obj)
       %On construct, makes sure that certain properties are set correctly
       %in relation to basis function (i.e. expected cell) size
-      obj.smooth_filter_mean = obj.m;
-      obj.smooth_filter_var = obj.m;
-      obj.spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(obj.m/sqrt(2)-1)); %@(grid_dist, sharp)logsig(sharp*grid_dist-floor(sharp*2*obj.m/2-1));
+%       obj.smooth_filter_mean = obj.m;
+%       obj.smooth_filter_var = obj.m;
+      % obj.spatial_push = @(grid_dist)logsig(0.5*grid_dist-floor(obj.m/sqrt(2)-1)); %@(grid_dist, sharp)logsig(sharp*grid_dist-floor(sharp*2*obj.m/2-1));
     end
     
     function s = export_struct(obj, varargin)

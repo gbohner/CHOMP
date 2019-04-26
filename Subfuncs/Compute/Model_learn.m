@@ -9,13 +9,19 @@ inp.opt = struct_merge(inp.opt, opt);
 
 if inp.opt.init_iter %If not 0 we aren't starting from scratch
   load(get_path(inp.opt,'output_iter',inp.opt.init_iter) ,'model')
+  inp.opt.W_weights = model.opt.W_weights;
   if (inp.opt.init_iter+1)< inp.opt.niter && inp.opt.learn
       %Update the dictionary (the W filters)
       utic = tic;
       if inp.opt.verbose
         fprintf('Iteration %d/%d, updating dictionary...', inp.opt.init_iter, inp.opt.niter);
       end
-      [W] = update_dict(inp.data,model.H,model.W,inp.opt,inp.opt.init_iter+2);
+      for type = 1:inp.opt.NSS
+        [W(:,inp.opt.Wblocks{type}), Sv] = update_dict(inp.data,model.H,model.W,inp.opt,inp.opt.init_iter+2, type);
+        if strcmp(opt.W_weight_type, 'decomp')
+          inp.opt.W_weights(inp.opt.Wblocks{type}) = Sv;
+        end
+      end
       if inp.opt.verbose
         fprintf(' took %.2f seconds\n',toc(utic))
       end
@@ -52,6 +58,7 @@ for n = (inp.opt.init_iter+1):inp.opt.niter
 
     %Save model from current iteration
     model = chomp_model(inp.opt,W,H,X,L,inp.y,inp.y_orig,inp.V);
+    if ~isempty(inp.UserMask), model.UserMask = inp.UserMask; end
     save(get_path(inp.opt,'output_iter',n) ,'model')
     
     if inp.opt.verbose
@@ -72,7 +79,10 @@ for n = (inp.opt.init_iter+1):inp.opt.niter
         fprintf('Iteration %d/%d, updating dictionary...', n, inp.opt.niter);
       end
       for type = 1:inp.opt.NSS
-        W(:,inp.opt.Wblocks{type}) = update_dict(inp.data,model.H,model.W(:,inp.opt.Wblocks{type}),inp.opt,n+2,type);
+        [W(:,inp.opt.Wblocks{type}), Sv] = update_dict(inp.data,model.H,model.W(:,inp.opt.Wblocks{type}),inp.opt,n+2,type);
+        if strcmp(opt.W_weight_type, 'decomp')
+          inp.opt.W_weights(inp.opt.Wblocks{type}) = Sv;
+        end
       end
       if inp.opt.verbose
         fprintf(' took %.2f seconds\n',toc(utic))
